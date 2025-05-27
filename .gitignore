@@ -1,0 +1,35 @@
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pkl
+*.ipynb_checkpoints/
+
+# Virtual environment
+awol-audio-env/
+.env/
+.venv/
+env/
+venv/
+
+# Output / generated data
+data/embeddings/
+output/audio/
+output/plots/
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Jupyter notebook checkpoints
+.ipynb_checkpoints/
+
+# Log files
+*.log
+
+# Temporary or backup files
+*.bak
+*.swp
+*~
