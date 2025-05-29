@@ -1,0 +1,4 @@
+ddsp==1.6.5
+hmmlearn<=0.2.7
+numpy==1.23.3
+crepe>=0.0.12
