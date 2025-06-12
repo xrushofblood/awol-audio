@@ -1,0 +1,34 @@
+# Cache, temp, system
+__pycache__/
+*.pyc
+*.pyo
+*.swp
+*.swo
+.DS_Store
+
+# Virtual environment
+.venv/
+env/
+venv/
+
+# Jupyter and Python notebook checkpoints
+.ipynb_checkpoints/
+
+# Audio and features (binary or large)
+data/audio_dataset/train/*.wav
+data/audio_features/
+data/nsynth-train
+output/
+
+# Model weights
+*.pt
+*.pth
+
+# Checkpoints and logs
+*.log
+*.ckpt
+
+# Misc
+*.npy
+*.npz
+*.tmp
