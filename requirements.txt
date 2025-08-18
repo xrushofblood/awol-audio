@@ -1,0 +1,11 @@
+numpy
+scipy
+pandas
+librosa==0.10.2.post1
+soundfile
+tqdm
+pyyaml
+pyloudnorm
+torch==2.3.1
+torchaudio==2.3.1
+torchcrepe
