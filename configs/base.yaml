@@ -1,0 +1,26 @@
+sample_rate: 24000
+target_peak_db: -1.0
+trim_db: 40.0      
+frame_size: 1024
+hop_size: 256
+n_mels: 128
+fmin_hz: 30.0
+fmax_hz: 12000.0
+
+f0:
+  fmin_hz: 30.0
+  fmax_hz: 1200.0
+  model: "torchcrepe"   
+
+loudness:
+  block_size: 256       
+
+hpss:
+  kernel_size: 31
+  power: 2.0
+
+paths:
+  raw_dir: "data/raw"
+  proc_dir: "data/processed"
+  meta_csv: "data/meta/prompts.csv"
+  npz_out: "data/processed/npz"

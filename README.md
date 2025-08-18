@@ -1,33 +1,51 @@
-# AWOL-Audio 🎵
+# AWOL-Audio (Text-to-Audio Prototype)
 
-This repository implements **AWOL (Amusing Wails On Loop) for audio**, inspired by the original paper *Analysis WithOut synthesis using Language* ([arXiv:2404.03042](https://arxiv.org/abs/2404.03042)) and adapted to the project specification of the **Deep Learning and Applied AI (DLAI) course** [Project 9 - AWOL](./project_list.pdf).
+This repository implements an **AWOL-inspired pipeline** for text-to-audio generation, starting with synthetic data and progressively extending to real datasets.
 
-The goal is to explore whether the philosophy of AWOL, originally applied to 3D geometry generation from language, can be used to **generate audio from textual prompts**.  
-The pipeline involves:
-1. Extracting **text embeddings** (via CLAP or similar models).  
-2. Mapping them into an **audio parameter space** (f0, loudness, harmonic parameters).  
-3. Using a **parametric synthesizer** (DDSP, MelGAN, or alternatives) to reconstruct sound.  
-4. Exploring both **retrieval-based** and **generative** approaches, in line with the original AWOL paper.
+## Current Status (Day 1)
+- Synthetic dataset generation:
+  - Created `make_synthetic_plucks.py` to generate short pluck sounds.
+  - Associated prompts stored in `data/meta/prompts.csv`.
+- Configuration:
+  - `configs/base.yaml` defines sample rate, hop size, frame size, and output paths.
+- Audio analysis modules (in `src/analysis/`):
+  - `audio_io.py` → I/O helpers.
+  - `preprocess.py` → normalization of raw audio.
+  - `features.py` → feature extraction (mel, f0, loudness, harmonic/noise decomposition).
+  - `validate.py` → checks dataset consistency with prompts.
+  - `inspect_npz.py` → inspects `.npz` feature files for shapes and value ranges.
+- Successfully ran:
+  - **Smoke test** (generation + preprocess).
+  - **Consistency check** (metadata ↔ audio ↔ npz).
+  - **Validate** (feature integrity).
+  - **Inspect NPZ** (manual inspection of mel, f0, vuv, loudness).
 
----
-
-## Repository structure
+## Repository Structure
 awol-audio/
-data/
-raw/ # Original wav files (not tracked by git)
-processed/ # Normalized/preprocessed audio
-meta/
-prompts.csv # Metadata: file_name, prompt
-src/
-analysis/
-audio_io.py
-preprocess.py
-features.py
-pack_npz.py
-validate.py
-configs/
-base.yaml
-notebooks/
-01_quick_listen.ipynb # Optional listening tests
-README.md
+│
+├── configs/
+│   └── base.yaml                # main configuration file
+│
+├── data/
+│   ├── meta/                    # metadata
+│   │   └── prompts.csv
+│   ├── raw/                     # raw audio (.wav)
+│   ├── processed/               # preprocessed audio (.wav)
+│   └── npz/                     # extracted features (.npz)
+│
+├── src/
+│   ├── analysis/                # analysis pipeline
+│   │   ├── audio_io.py
+│   │   ├── preprocess.py
+│   │   ├── features.py
+│   │   ├── validate.py
+│   │   ├── inspect_npz.py
+│   │   ├── consistency_check.py
+│   │   └── smoke_test.py
+│   │
+│   └── datasets/                # synthetic dataset generation
+│       └── make_synthetic_plucks.py
+│
+├── README.md
+└── requirements.txt
 
