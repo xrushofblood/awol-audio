@@ -1,6 +1,6 @@
 sample_rate: 24000
 target_peak_db: -1.0
-trim_db: 40.0      
+trim_db: 40.0
 frame_size: 1024
 hop_size: 256
 n_mels: 128
@@ -8,12 +8,21 @@ fmin_hz: 30.0
 fmax_hz: 12000.0
 
 f0:
-  fmin_hz: 30.0
-  fmax_hz: 1200.0
-  model: "torchcrepe"   
+  fmin_hz: 80.0         
+  fmax_hz: 500.0        
+  model: "torchcrepe"
+
+vuv:
+  periodicity_thr: 0.35
+  energy_db_thr: -42.0
+  min_voiced_len: 3
+  head_tail_db: -35.0
+  head_tail_win: 4
+  interpolate: true
+  octave_lift: true 
 
 loudness:
-  block_size: 256       
+  block_size: 256
 
 hpss:
   kernel_size: 31
