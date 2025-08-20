@@ -51,12 +51,54 @@ This repository implements an **AWOL-inspired pipeline** for text-to-audio gener
 
 ---
 
+### Day 3 — Supervised Mapper (Text → Audio Embeddings)
+**Objective:**  
+1. Create a supervised **Mapper** from text embeddings → audio embeddings (CLAP space).  
+2. Train on synthetic pluck pairs (text/audio aligned by filename).  
+3. Evaluate with cosine similarity and indirect retrieval (predict → search in FAISS).  
+
+**Steps implemented:**
+- **Setup**  
+  - Added `configs/mapper.yaml` with device, paths, model, training, and evaluation settings.  
+  - Installed `scikit-learn` for train/validation split.  
+  - Created checkpoint directory (`checkpoints/mapper`).  
+
+- **Model**  
+  - Implemented `src/mapper/mapper_mlp.py`: a simple **MLP** mapping text embeddings → audio embeddings.  
+  - Supports multiple hidden layers, dropout, and optional L2 normalization of outputs.  
+
+- **Training**  
+  - `src/mapper/train_mapper.py` handles supervised training with cosine or MSE loss, AdamW optimizer, and early stopping.  
+  - Uses paired embeddings (`.text.npy` / `.audio.npy`) from Day 2.  
+  - Produces checkpoint `mapper_best.pt` with best validation loss.  
+
+- **Evaluation**  
+  - `src/mapper/evaluate_mapper.py` computes:  
+    - Mean **cosine similarity** on validation pairs.  
+    - **Retrieval metrics**: Recall@1 and Recall@5 via FAISS index.  
+
+- **Interactive usage**  
+  - `src/mapper/predict_and_retrieve.py`:  
+    - Loads a text embedding (e.g., `synthetic_pluck_012.text.npy`).  
+    - Predicts audio embedding with Mapper.  
+    - Retrieves top-K nearest neighbors from FAISS index.  
+
+- **Smoke test**  
+  - `src/mapper/mapper_smoke.py`: quick 2-epoch test to check training loop and decreasing loss.  
+
+**Expected results:**  
+- A trained **mapper checkpoint** (`checkpoints/mapper/mapper_best.pt`).  
+- Validation metrics: cosine similarity + R@1, R@5 retrieval scores.  
+- Verified end-to-end flow: **text embedding → Mapper → predicted audio embedding → FAISS retrieval**.  
+
+
 ## Repository Structure
 awol-audio/
 │
 ├── configs/
 │   ├── base.yaml                # main audio configuration
-│   └── embeddings.yaml          # embedding/retrieval configuration
+|   ├── embeddings.yaml          # embedding/retrieval configuration
+│   └── mapper.yaml 
 │
 ├── data/
 │   ├── meta/                    # metadata
@@ -64,11 +106,13 @@ awol-audio/
 │   ├── raw/                     # raw audio (.wav)
 │   ├── processed/               # preprocessed audio and features
 │   │   ├── embeddings/          # per-file embeddings
+|   |   |    ├── audio/               
+|   │   |    └── text/ 
 │   │   ├── index/               # faiss index + ids.npy
 │   │   └── npz/                 # extracted features (.npz)
 │   └── embeddings/              # packed embeddings
-│       ├── audio/               # consolidated audio embeddings
-│       └── text/                # consolidated text embeddings
+│       ├── audio.npy               # consolidated audio embeddings
+│       └── text.npy                # consolidated text embeddings
 │
 ├── src/
 │   ├── analysis/                # analysis pipeline
@@ -89,7 +133,13 @@ awol-audio/
 │   │   └── pack_embeddings.py
 │   │
 │   ├── audio_encoder/           # audio embedding models
-│   └── text_encoder/            # text embedding models
+│   ├──text_encoder/            # text embedding models
+|   └── mapper/
+│      ├── evaluate_mapper.py
+│      ├── mapper_mlp.py
+│      ├── mapper_smoke.py
+│      ├── predict_and_retrieve.py
+│      └── train_mapper.py
 │
 ├── README.md
 └── requirements.txt
