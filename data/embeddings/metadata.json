@@ -1,0 +1,7 @@
+{
+  "count": 54,
+  "dim_text": 512,
+  "dim_audio": 512,
+  "source_text_dir": "data/processed/embeddings/text",
+  "source_audio_dir": "data/processed/embeddings/audio"
+}
