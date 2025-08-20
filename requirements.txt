@@ -15,3 +15,4 @@ laion-clap
 faiss-cpu
 sentence-transformers
 
+scikit-learn

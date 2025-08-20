@@ -1,0 +1,33 @@
+# Device
+device: "cpu"   
+
+# Dirs
+paths:
+  text_emb_dir: "data/processed/embeddings/text"
+  audio_emb_dir: "data/processed/embeddings/audio"
+  index_dir:     "data/processed/index"      
+  ckpt_dir:      "checkpoints/mapper"
+
+# Model
+model:
+  in_dim: 512      # CLAP dim
+  hidden: [512, 512]
+  out_dim: 512
+  dropout: 0.1
+  norm_out: true   # normalize predicted vector before loss
+
+# Training
+train:
+  batch_size: 16
+  epochs: 20
+  lr: 0.001 
+  weight_decay: 0.0001 
+  val_ratio: 0.2
+  seed: 42
+  loss: "cosine"
+  early_stop_patience: 5
+
+
+# Evaluation
+eval:
+  topk: 5
