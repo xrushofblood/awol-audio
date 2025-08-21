@@ -92,16 +92,58 @@ This repository implements an **AWOL-inspired pipeline** for text-to-audio gener
 - Verified end-to-end flow: **text embedding → Mapper → predicted audio embedding → FAISS retrieval**.  
 
 
+### Day 4 — Free Query & Prompt Fusion
+**Objective:** Extend Mapper usage to handle free-text queries and prompt combinations.  
+
+**New features implemented:**
+- **Free Query Prediction**  
+  - `src/mapper/predict_free_query.py` allows predicting audio embeddings directly from **unseen textual prompts** (not limited to `prompts.csv`).  
+  - Example run:  
+    ```
+    python -m src.mapper.predict_free_query --config configs/mapper.yaml --ckpt checkpoints/mapper/mapper_best.pt --prompt "warm wooden pluck with short sustain" --topk 5
+    ```  
+  - Output: ranked list of nearest audio files, confirming generalization of Mapper.  
+
+- **Prompt Fusion**  
+  - `src/tools/prompt_fusion.py` merges multiple prompts into a **blended embedding** before retrieval.  
+  - Example run:  
+    ```
+    python -m src.tools.prompt_fusion --config configs/mapper.yaml --ckpt checkpoints/mapper/mapper_best.pt --prompts "bright pluck" "sparkling pluck" "crisp short-decay tone" --topk 5
+    ```  
+  - Produces audio candidates matching **combined descriptors**.  
+
+- **Batch Free Query**  
+  - `src/tools/batch_free.py` runs multiple unseen prompts at once (stored in `.txt` or `.csv`).  
+  - Results saved into `batch_free.csv` with columns: `prompt, rank, name, score`.  
+  - Example output:  
+    ```
+    bright metallic pluck with long sustain,1,synthetic_pluck_034.audio,0.9839
+    dark mellow pluck with short decay,1,synthetic_pluck_031.audio,0.9688
+    warm wooden tone with soft attack,1,synthetic_pluck_031.audio,0.9764
+    ```
+  - Confirms stable retrieval across diverse query styles.  
+
+**Results:**  
+- Mapper successfully generalizes to **novel text prompts**.  
+- Prompt fusion allows richer, more expressive descriptions.  
+- Batch querying enables systematic evaluation across prompt sets.  
+
+
 ## Repository Structure
 awol-audio/
 │
+├── checkpoints/
+│   ├── clap/           
+│   └── mapper/
+|
 ├── configs/
 │   ├── base.yaml                # main audio configuration
 |   ├── embeddings.yaml          # embedding/retrieval configuration
 │   └── mapper.yaml 
 │
 ├── data/
-│   ├── meta/                    # metadata
+│   ├── meta/           # metadata
+|   |   ├── free_prompts.csv
 │   │   └── prompts.csv
 │   ├── raw/                     # raw audio (.wav)
 │   ├── processed/               # preprocessed audio and features
@@ -110,6 +152,7 @@ awol-audio/
 |   │   |    └── text/ 
 │   │   ├── index/               # faiss index + ids.npy
 │   │   └── npz/                 # extracted features (.npz)
+|   ├── results/ 
 │   └── embeddings/              # packed embeddings
 │       ├── audio.npy               # consolidated audio embeddings
 │       └── text.npy                # consolidated text embeddings
@@ -130,16 +173,22 @@ awol-audio/
 │   │
 │   ├── retrieval/               # retrieval pipeline
 │   │   ├── retrieve.py
+|   |   ├── batch_free_query.py
 │   │   └── pack_embeddings.py
 │   │
 │   ├── audio_encoder/           # audio embedding models
 │   ├──text_encoder/            # text embedding models
+|   |
+|   ── tools/
+|   |
 |   └── mapper/
 │      ├── evaluate_mapper.py
 │      ├── mapper_mlp.py
 │      ├── mapper_smoke.py
 │      ├── predict_and_retrieve.py
+|      ├── predict_free_query.py
 │      └── train_mapper.py
+|   
 │
 ├── README.md
 └── requirements.txt
