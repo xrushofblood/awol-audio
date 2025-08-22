@@ -1,0 +1,25 @@
+# configs/synth.yaml
+device: "cpu"
+
+synth:
+  type: "karplus_strong"    
+  input_dim: 512
+  hidden: [512, 512]      
+  seconds: 1.0
+  sample_rate: 16000
+
+  # Parameter ranges for Karplus–Strong
+  f0_min_hz: 110             # A2
+  f0_max_hz: 1760            # A6
+  decay_min: 0.90
+  decay_max: 0.9995
+  brightness_min: 0.05
+  brightness_max: 0.60
+
+  # How to get parameters from an embedding
+  param_source: "mapper"   
+
+paths:
+  mapper_ckpt: "checkpoints/mapper/mapper_best.pt"
+  clap_ckpt: "checkpoints/clap/clap_630k.pt"
+  output_dir: "outputs/gen_audio"

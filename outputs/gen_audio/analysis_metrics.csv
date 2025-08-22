@@ -1,0 +1,16 @@
+file,prompt_guess,sr,rms,f0_hz_med,spectral_centroid_hz_med,rolloff85_hz_med,decay_T20_sec,decay_T40_sec,duration_sec
+bright_metallic_pluck_with_medium_decay.wav,bright metallic pluck with medium decay,16000,0.035780,609.80,0.00,0.00,0.0300,0.0550,1.000
+bright_metallic_pluck_with_short_decay.wav,bright metallic pluck with short decay,16000,0.037591,622.32,0.00,0.00,0.0300,0.0550,1.000
+bright_pluck_with_long_ringing_sustain.wav,bright pluck with long ringing sustain,16000,0.034261,913.67,0.00,0.00,0.0400,0.0800,1.000
+dark_mellow_pluck.wav,dark mellow pluck,16000,0.037132,595.88,0.00,0.00,0.0350,0.0600,1.000
+dark_mellow_pluck_with_long_decay.wav,dark mellow pluck with long decay,16000,0.035906,616.88,0.00,0.00,0.0300,0.0550,1.000
+high-pitch_bright_pluck_with_short_decay.wav,high pitch bright pluck with short decay,16000,0.041543,918.96,0.00,0.00,0.0500,0.0900,1.000
+high-pitch_dark_mellow_pluck_with_medium_decay.wav,high pitch dark mellow pluck with medium decay,16000,0.036981,616.88,0.00,0.00,0.0300,0.0600,1.000
+high-pitch_very_bright_metallic_pluck_with_very_short_decay.wav,high pitch very bright metallic pluck with very short decay,16000,0.037025,649.80,0.00,0.00,0.0300,0.0550,1.000
+high-pitch_warm_pluck_with_long_sustain.wav,high pitch warm pluck with long sustain,16000,0.035899,616.88,0.00,0.00,0.0300,0.0550,1.000
+low-pitch_bright_metallic_pluck_with_long_sustain.wav,low pitch bright metallic pluck with long sustain,16000,0.036095,616.88,0.00,0.00,0.0300,0.0550,1.000
+low-pitch_dark_mellow_pluck_with_short_decay.wav,low pitch dark mellow pluck with short decay,16000,0.038297,649.80,0.00,0.00,0.0300,0.0550,1.000
+low-pitch_warm_pluck_with_medium_decay.wav,low pitch warm pluck with medium decay,16000,0.036592,615.11,0.00,0.00,0.0300,0.0600,1.000
+low-pitch_warm_pluck_with_short_decay.wav,low pitch warm pluck with short decay,16000,0.042599,918.96,0.00,0.00,0.0500,0.0900,1.000
+very_bright_metallic_pluck.wav,very bright metallic pluck,16000,0.039271,913.67,0.00,0.00,0.0400,0.0800,1.000
+warm_wooden_pluck_with_short_decay.wav,warm wooden pluck with short decay,16000,0.037400,653.57,0.00,0.00,0.0300,0.0550,1.000
