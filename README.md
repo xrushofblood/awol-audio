@@ -129,6 +129,26 @@ This repository implements an **AWOL-inspired pipeline** for text-to-audio gener
 - Batch querying enables systematic evaluation across prompt sets.  
 
 
+### Day 5/6 — Prototype Synthesizer
+
+**Objective:**  
+- Implement a **prototype audio synthesizer** driven by prompt-derived parameters.  
+- Integrate a **Karplus–Strong decoder** (`synth_decoder.py`) into the pipeline.  
+- Allow generation of pluck-like audio signals from free-text prompts.  
+
+**Implementation:**  
+- Added `run_synth.py` with rule-based parameter extraction (`rule_params_from_prompt`).  
+- Added `KarplusStrongDecoder` to map high-level controls (pitch, decay, brightness, material).  
+- Configured paths and defaults in `configs/synth.yaml`.  
+- Tested the synthesizer on multiple prompts (e.g., *bright metallic pluck*, *dark mellow pluck*, *high-pitch bright pluck*).  
+
+**Notes:**  
+- Current tests show **audible variation** between prompts (mainly pitch/decay).  
+- We have **not yet tested the mapper in synthesis** — parameters are currently forced via simple rules for validation.  
+- This provides a **working baseline** to verify that the pipeline produces coherent audio before moving to real data and more complex decoders.
+
+
+
 ## Repository Structure
 awol-audio/
 │
@@ -139,7 +159,9 @@ awol-audio/
 ├── configs/
 │   ├── base.yaml                # main audio configuration
 |   ├── embeddings.yaml          # embedding/retrieval configuration
+|   ├── synth.yaml
 │   └── mapper.yaml 
+|
 │
 ├── data/
 │   ├── meta/           # metadata
@@ -166,6 +188,7 @@ awol-audio/
 │   │   ├── inspect_npz.py
 │   │   ├── consistency_check.py
 │   │   ├── smoke_test.py
+|   |   ├── spectral_feats.py
 │   │   └── embeddings_smoke_test.py
 │   │
 │   ├── datasets/                # synthetic dataset generation
@@ -175,11 +198,16 @@ awol-audio/
 │   │   ├── retrieve.py
 |   |   ├── batch_free_query.py
 │   │   └── pack_embeddings.py
-│   │
+|   |
+|   ├── synth/ 
+|   |   ├── run_synth.py
+|   |   └── synth_decoder.py
+│   │   
+|   |
 │   ├── audio_encoder/           # audio embedding models
 │   ├──text_encoder/            # text embedding models
 |   |
-|   ── tools/
+|   |── tools/
 |   |
 |   └── mapper/
 │      ├── evaluate_mapper.py

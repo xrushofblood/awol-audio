@@ -1,8 +1,8 @@
 # src/synth/synth_decoder.py
 from __future__ import annotations
 import math
-from pathlib import Path
 from typing import Tuple
+from pathlib import Path
 
 import numpy as np
 import torch
@@ -10,172 +10,163 @@ import torch.nn as nn
 import soundfile as sf
 
 
-# ---------- I/O ----------
-def save_wave(wave: np.ndarray, sr: int, out_path: str) -> None:
-    Path(out_path).parent.mkdir(parents=True, exist_ok=True)
-    # limiter soft: clip a ±0.95
-    wave = np.clip(wave, -0.95, 0.95).astype(np.float32)
-    sf.write(out_path, wave, sr)
+# ----------------------
+# Utility: save wav file
+# ----------------------
+def save_wave(wave: np.ndarray, sr: int, path: str) -> None:
+    """Save mono waveform with gentle limiting to avoid blasts."""
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    wave = np.clip(wave.astype(np.float32), -0.95, 0.95)
+    sf.write(path, wave, sr)
 
 
-# ---------- Simple MLP → waveform (baseline non-fisico) ----------
+# ----------------------
+# Simple MLP decoder (reference)
+# ----------------------
 class SimpleDecoder(nn.Module):
     """
-    Maps a 512-D (or cfg-defined) embedding to a raw waveform by a small MLP.
-    This is a *placeholder* and not trained: useful come baseline per debug.
+    Very simple MLP "decoder" that maps an embedding to a waveform directly.
+    Kept for reference; not recommended for Day 6 because variety was poor.
     """
-    def __init__(self, input_dim: int = 512, hidden: Tuple[int, ...] = (512, 512),
-                 sample_rate: int = 16000, seconds: float = 1.0):
+    def __init__(self, input_dim: int = 512, hidden: Tuple[int, ...] = (512, 512), out_samples: int = 16000):
         super().__init__()
-        self.sample_rate = int(sample_rate)
-        self.seconds = float(seconds)
-        self.out_samples = int(self.sample_rate * self.seconds)
-
         layers = []
         last = input_dim
         for h in hidden:
             layers += [nn.Linear(last, h), nn.ReLU(inplace=True)]
             last = h
-        layers += [nn.Linear(last, self.out_samples), nn.Tanh()]
+        layers += [nn.Linear(last, out_samples), nn.Tanh()]
         self.net = nn.Sequential(*layers)
 
-    def forward(self, z: torch.Tensor) -> torch.Tensor:
+    def forward(self, emb: torch.Tensor) -> torch.Tensor:
         """
-        z: (B, D) normalized embedding
-        returns: (B, T) waveform in [-1, 1]
+        emb: (B, D)
+        returns: (B, T) in [-1, 1]
         """
-        return self.net(z)
+        return self.net(emb)
 
 
-# ---------- Karplus–Strong plucked string ----------
+# --------------------------------------
+# Karplus–Strong Decoder (Day 6 version)
+# --------------------------------------
 class KarplusStrongDecoder(nn.Module):
     """
-    Differentiable-ish Karplus–Strong renderer.
-    We *derive* physical-ish parameters (f0, decay, brightness, noise mix)
-    FROM the input embedding with a tiny MLP, then synthesize the waveform.
-
-    __init__(sample_rate, max_seconds, seed=None)
-    forward(z) -> (B, T)
+    Karplus–Strong plucked-string style decoder.
+    We map the embedding to audible controls:
+      - f0 (Hz)
+      - decay time (seconds) -> per-sample feedback / damping
+      - brightness (0..1) -> low-pass shaping in feedback loop
+      - excitation color (0..1) -> mixes white noise and short burst
     """
-    def __init__(self, sample_rate: int = 16000, max_seconds: float = 1.0, seed: int | None = None):
+
+    def __init__(self, sample_rate: int = 16000, seed: int | None = None):
         super().__init__()
-        self.sample_rate = int(sample_rate)
-        self.max_seconds = float(max_seconds)
-        self.out_samples = int(self.sample_rate * self.max_seconds)
-
-        # Tiny mapper: embedding D → params [f0_norm, decay, brightness, noise_mix]
-        # NB: D viene dedotto a runtime dalla prima forward (lazy init) usando nn.LazyLinear.
-        self.param_head = nn.Sequential(
-            nn.LazyLinear(128), nn.ReLU(inplace=True),
-            nn.Linear(128, 4)
-        )
-
-        # Range fisici (molto semplici)
-        self.register_buffer("f0_min", torch.tensor(80.0))    # Hz
-        self.register_buffer("f0_max", torch.tensor(1200.0))  # Hz
-
-        # Random init for pluck noise
-        self._rng = np.random.default_rng(seed if seed is not None else 0)
+        self.sr = int(sample_rate)
+        self.rng = np.random.RandomState(seed if seed is not None else 0)
 
     @staticmethod
-    def _sigmoid(x: torch.Tensor) -> torch.Tensor:
-        return torch.sigmoid(x)
+    def _squash_01(x: torch.Tensor) -> torch.Tensor:
+        # Map roughly [-1, 1] -> [0, 1]; works fine for L2-normalized embeddings
+        return (x + 1.0) * 0.5
 
-    def _params_from_embedding(self, z: torch.Tensor) -> Tuple[torch.Tensor, ...]:
+    def emb_to_params(self, emb: torch.Tensor) -> dict:
         """
-        z: (B, D) normalized embedding
-        returns:
-          f0_hz: (B,)
-          decay: (B,)   in (0.85..0.999)
-          bright: (B,)  in (0.0..1.0)
-          mix: (B,)     in (0.0..1.0)  noise burst vs. sine excitation
+        Map embedding (B, D) to param dicts of shape (B,).
+        We only use first few dimensions; you can re-map later as you wish.
         """
-        raw = self.param_head(z)  # (B, 4)
-        s = self._sigmoid(raw)
+        assert emb.ndim == 2, "Expected emb of shape (B, D)"
+        e0 = self._squash_01(emb[:, 0])  # pitch control
+        e1 = self._squash_01(emb[:, 1])  # decay control
+        e2 = self._squash_01(emb[:, 2])  # brightness control
+        e3 = self._squash_01(emb[:, 3])  # excitation color
 
-        f0_norm  = s[:, 0]                                   # (0..1)
-        f0_hz    = self.f0_min + f0_norm * (self.f0_max - self.f0_min)
+        # Pitch mapping: 120..880 Hz (roughly A2..A5)
+        f0 = 120.0 + (880.0 - 120.0) * e0
 
-        decay    = 0.85 + 0.149 * s[:, 1]                    # (0.85..0.999)
-        bright   = s[:, 2]                                   # (0..1)
-        mix      = s[:, 3]                                   # (0..1)
+        # Decay time: 0.06..0.60 s (audibly different on 1 s signals)
+        decay_s = 0.06 + (0.60 - 0.06) * e1
 
-        return f0_hz, decay, bright, mix
+        # Brightness: 0.2..0.98 for LP coefficient in feedback
+        brightness = 0.20 + (0.98 - 0.20) * e2
 
-    def _ks_render_np(self, f0_hz: float, decay: float, bright: float, mix: float) -> np.ndarray:
-        """
-        Single-note Karplus–Strong in NumPy (CPU), 1 second max.
-        - f0_hz: target pitch
-        - decay: feedback gain per sample (close to 1.0 for long sustain)
-        - bright: simple one-pole tone (0=darker, 1=brighter)
-        - mix: excitation blend (0=pure burst noise, 1=pure sine)
-        """
-        T = self.out_samples
-        sr = self.sample_rate
+        # Excitation mix: 0 (noisier/darker) .. 1 (brighter burst)
+        excite = e3
 
-        # delay length in samples
-        delay_samps = max(2, int(round(sr / max(20.0, f0_hz))))  # guard for numeric stability
-        buf = np.zeros(delay_samps, dtype=np.float32)
+        return {
+            "f0_hz": f0,               # (B,)
+            "decay_s": decay_s,        # (B,)
+            "brightness": brightness,  # (B,)
+            "excite": excite,          # (B,)
+        }
 
-        # excitation: burst noise + sine burst
-        n_burst = min(delay_samps, max(8, int(0.01 * sr)))  # 10 ms burst cap
-        noise_exc = (self._rng.random(n_burst) * 2.0 - 1.0).astype(np.float32)
-        t = np.arange(n_burst, dtype=np.float32) / sr
-        sine_exc = np.sin(2 * np.pi * f0_hz * t).astype(np.float32)
-        exc = (1.0 - mix) * noise_exc + mix * sine_exc
+    def _excitation(self, length: int, excite_mix: float) -> np.ndarray:
+        """Create an excitation signal combining white noise and a short bright burst."""
+        noise = self.rng.randn(length).astype(np.float32)
+        burst_len = max(4, length // 16)
+        burst = np.zeros(length, dtype=np.float32)
+        burst[:burst_len] = 1.0
+        ex = float(excite_mix) * burst + (1.0 - float(excite_mix)) * noise
+        ex = ex / (np.max(np.abs(ex)) + 1e-6)
+        return ex
 
-        # write excitation in the delay buffer
-        buf[:n_burst] = exc
+    def _ks_string(self, f0: float, seconds: float, decay_s: float, brightness: float, excite_mix: float) -> np.ndarray:
+        """Single-string Karplus–Strong with simple damping/brightness."""
+        sr = self.sr
+        N = int(sr * seconds)
+        N = max(N, 1)
 
-        # One-pole lowpass in the feedback: y[n] = (1 - a)*x[n] + a*y[n-1]
-        # Map brightness→a (0..1) where a near 0 = bright, a near 1 = dark
-        a = float(1.0 - 0.9 * bright)  # clamp to (0.1..1.0)
-        ylp = 0.0
+        # delay length
+        delay = max(2, int(round(sr / max(40.0, float(f0)))))  # clamp to min freq ~40 Hz
+        buf = self._excitation(delay, excite_mix)
 
-        out = np.zeros(T, dtype=np.float32)
+        # Per-sample decay coefficient ~ exp(-1 / (tau * sr))
+        tau = max(0.01, float(decay_s))
+        decay_coeff = math.exp(-1.0 / (tau * sr))
+
+        # Brightness as 1-pole LP in the feedback path: y[n] = b*y[n-1] + (1-b)*avg
+        b = float(np.clip(brightness, 0.0, 0.999))
+        y_prev = 0.0
+
+        out = np.zeros(N, dtype=np.float32)
         idx = 0
-
-        for n in range(T):
-            # Read head
-            yn = buf[idx]
-
-            # Simple one-pole on feedback
-            ylp = (1.0 - a) * yn + a * ylp
-            fb = decay * ylp
-
-            # Write head (wrap-around)
-            buf[idx] = fb
+        for n in range(N):
+            x = buf[idx]
+            avg = 0.5 * (x + y_prev)        # standard KS averaging
+            y = b * y_prev + (1.0 - b) * avg  # brightness shaping
+            out[n] = y
+            y_prev = y
+            buf[idx] = y * decay_coeff      # feedback with decay
             idx += 1
-            if idx >= delay_samps:
+            if idx >= delay:
                 idx = 0
 
-            out[n] = yn
+        out /= (np.max(np.abs(out)) + 1e-6)
+        out *= 0.9
+        return out.astype(np.float32)
 
-        # light normalization
-        peak = np.max(np.abs(out)) + 1e-7
-        out = 0.95 * out / peak
-        return out
-
-    def forward(self, z: torch.Tensor) -> torch.Tensor:
+    def forward(self, emb: torch.Tensor, seconds: float = 1.0) -> torch.Tensor:
         """
-        z: (B, D) normalized embedding
+        emb: (B, D)
         returns: (B, T) waveform in [-1, 1]
         """
-        if z.ndim != 2:
-            raise ValueError("KarplusStrongDecoder expects input (B, D)")
+        if emb.ndim != 2:
+            raise ValueError("emb must be (B, D)")
 
-        # predict params
-        f0_hz, decay, bright, mix = self._params_from_embedding(z)  # each (B,)
+        params = self.emb_to_params(emb)  # dict of tensors (B,)
+        f0 = params["f0_hz"].cpu().numpy()
+        decay_s = params["decay_s"].cpu().numpy()
+        brightness = params["brightness"].cpu().numpy()
+        excite = params["excite"].cpu().numpy()
 
         waves = []
-        # synth sample-by-sample per item (batch small in this project)
-        for i in range(z.size(0)):
-            w = self._ks_render_np(
-                float(f0_hz[i].detach().cpu().item()),
-                float(decay[i].detach().cpu().item()),
-                float(bright[i].detach().cpu().item()),
-                float(mix[i].detach().cpu().item()),
+        for i in range(emb.shape[0]):
+            w = self._ks_string(
+                f0=f0[i],
+                seconds=float(seconds),
+                decay_s=decay_s[i],
+                brightness=brightness[i],
+                excite_mix=excite[i],
             )
-            waves.append(torch.from_numpy(w))
-
-        return torch.stack(waves, dim=0)  # (B, T)
+            waves.append(w)
+        waves = np.stack(waves, axis=0)  # (B, T)
+        return torch.from_numpy(waves)
