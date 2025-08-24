@@ -1,0 +1,38 @@
+# configs/base_real.yaml 
+
+sample_rate: 44100        
+target_peak_db: -1.0
+trim_db: 40.0
+
+frame_size: 1024
+hop_size: 256
+n_mels: 128                
+fmin_hz: 30.0
+fmax_hz: 12000.0
+
+f0:
+  fmin_hz: 80.0
+  fmax_hz: 500.0
+  model: "torchcrepe"       
+
+vuv:
+  periodicity_thr: 0.35
+  energy_db_thr: -42.0
+  min_voiced_len: 3
+  head_tail_db: -35.0
+  head_tail_win: 4
+  interpolate: true
+  octave_lift: true
+
+loudness:
+  block_size: 256
+
+hpss:
+  kernel_size: 31
+  power: 2.0
+
+paths:
+  raw_dir: "data/real/raw"                  
+  proc_dir: "data/real/processed"          
+  meta_csv: "data/meta/real_prompts.csv"    
+  npz_out: "data/real/processed/npz"       

@@ -1,0 +1,32 @@
+# Device
+device: "cpu"
+
+# Dirs (per-file embeddings + index real)
+paths:
+  text_emb_dir: "data/real/processed/embeddings/text"
+  audio_emb_dir: "data/real/processed/embeddings/audio"
+  index_dir:     "data/real/processed/index"
+  ckpt_dir:      "checkpoints/mapper_real"
+
+# Model
+model:
+  in_dim: 512
+  hidden: [512, 512]
+  out_dim: 512
+  dropout: 0.1
+  norm_out: true   # L2-normalize prediction before cosine loss
+
+# Training
+train:
+  batch_size: 8        
+  epochs: 200         
+  lr: 0.001
+  weight_decay: 0.0001
+  val_ratio: 0.2
+  seed: 42
+  loss: "cosine"
+  early_stop_patience: 20
+
+# Evaluation
+eval:
+  topk: 5
