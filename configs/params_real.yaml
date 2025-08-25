@@ -1,0 +1,42 @@
+device: "cpu"
+
+paths:
+  audio_emb_dir: "data/real/processed/embeddings/audio"
+  npz_dir:        "data/real/processed/npz"
+  ckpt_dir:       "checkpoints/paramreg_v2"
+
+audio:
+  sample_rate: 44100
+  hop_size: 256
+  fmin_hz: 30.0
+  fmax_hz: 12000.0
+
+synth:
+  params:
+    - { name: "pitch_hz",      min: 60.0,  max: 1000.0, scale: log_hz }
+    - { name: "decay_t60",     min: 0.08,  max: 0.90 }                  
+    - { name: "brightness",    min: 0.0,   max: 1.0   }
+    - { name: "damping",       min: 0.0,   max: 1.0   }
+    - { name: "pick_position", min: 0.1,   max: 0.9   }
+    - { name: "noise_mix",     min: 0.0,   max: 1.0   }
+
+train:
+  val_ratio: 0.2
+  seed: 42
+  batch_size: 8
+  epochs: 400
+  lr: 0.001
+  weight_decay: 0.00001
+  early_stop_patience: 40
+  loss: "huber"
+  loss_beta: 0.05
+  embed_noise_std: 0.005
+  loss_weights:
+    decay_t60: 2.0
+    pitch_hz: 1.5
+
+model:
+  in_dim: 512
+  hidden: [256, 128]
+  out_dim: 6
+  dropout: 0.1
