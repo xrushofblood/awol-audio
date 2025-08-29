@@ -6,7 +6,7 @@ paths:
   npz_dir:       "data/real/processed/npz"                  # .npz for param targets
   ckpt_dir:      "checkpoints/mapper_real"
   index_dir:     "data/real/processed/index"                # (only for evaluate_mapper)
-  paramreg_ckpt: "checkpoints/paramreg_v3/paramreg_best.pt" # your super paramreg
+  paramreg_ckpt: "checkpoints/paramreg_v4/paramreg_best.pt" # your super paramreg
   params_config: "configs/params_real.yaml"                 # same as used for paramreg
 
 model:

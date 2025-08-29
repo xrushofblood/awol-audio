@@ -11,7 +11,7 @@ paths:
   # embeddings audio to retrieve neighbour vectors
   audio_emb_dir: "data/real/processed/embeddings/audio"
   # output synth
-  out_dir: "data/real/results/test3"
+  out_dir: "data/real/results/test4"
 
   mapper_config: "configs/mapper_real.yaml"
   params_config:  "configs/params_real.yaml"

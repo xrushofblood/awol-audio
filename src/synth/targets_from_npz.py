@@ -3,10 +3,6 @@ import numpy as np
 
 EPS = 1e-8
 
-# --- Tunable constants based on your dataset scans ---
-ATTACK_WIN_MS = 45.0   # attack window length in milliseconds for "brightness_attack"
-BA_MAX        = 0.18   # cap used to normalize brightness_attack to [0,1] (derived from scans)
-
 def ema_smooth(x, alpha=0.2):
     """Simple exponential moving average smoothing."""
     if len(x) == 0:
@@ -27,7 +23,7 @@ def robust_median_f0(f0, vuv, fmin=20.0):
 def estimate_t60_from_loudness_db(loud_db, sr, hop):
     """
     Estimate T60 (sec) from loudness (dB) decay after peak.
-    We fit a simple slope on (peak..end) of L0 - L(t). T60 ~ 60/slope.
+    Fit a slope on (peak..end) of L0 - L(t). T60 ~ 60/slope.
     """
     if len(loud_db) < 4:
         return 0.3
@@ -49,7 +45,7 @@ def estimate_t60_from_loudness_db(loud_db, sr, hop):
     return float(np.clip(t60, 0.05, 2.5))
 
 def spectral_brightness_ratio(mel):
-    """Ratio of energy in the top 1/3 mel bands over the whole duration."""
+    """Ratio of energy in the top 1/3 mel bands (0..1)."""
     if mel.ndim != 2:
         mel = np.atleast_2d(mel)
     n_mels = mel.shape[0]
@@ -59,23 +55,12 @@ def spectral_brightness_ratio(mel):
     den = float(mel.sum() + EPS)
     return float(np.clip(num / den, 0.0, 1.0))
 
-def spectral_brightness_ratio_attack(mel, sr, hop, win_ms=ATTACK_WIN_MS):
-    """
-    Brightness ratio computed only on the first ~win_ms milliseconds (attack region).
-    This is much more correlated with pick position than the global brightness.
-    """
-    if mel.ndim != 2:
-        mel = np.atleast_2d(mel)
-    # frames for the requested attack window
-    frames = max(1, int(round((win_ms / 1000.0) * sr / hop)))
-    frames = min(frames, mel.shape[1])  # guard if signal is very short
-    mel_att = mel[:, :frames]
-    n_mels = mel_att.shape[0]
-    cutoff = int(n_mels * (2.0 / 3.0))
-    top = mel_att[cutoff:, :]
-    num = float(top.sum())
-    den = float(mel_att.sum() + EPS)
-    return float(np.clip(num / den, 0.0, 1.0))
+def spectral_brightness_ratio_slice(mel, start, end):
+    """Brightness ratio on a mel time slice [start:end]."""
+    start = int(max(0, start))
+    end = int(min(mel.shape[1], max(start + 1, end)))
+    mel_slice = mel[:, start:end]
+    return spectral_brightness_ratio(mel_slice)
 
 def noise_mix_from_hn(mel_h, mel_p):
     """Proportion of percussive/noise energy."""
@@ -85,57 +70,76 @@ def noise_mix_from_hn(mel_h, mel_p):
     den = float(mel_h.sum() + mel_p.sum() + EPS)
     return float(np.clip(num / den, 0.0, 1.0))
 
-def pick_position_from_brightness_attack(bright_attack):
+def pick_position_from_brightness(bright):
     """
-    Map attack brightness -> pick position in [0.1, 0.9].
-    Convention used here:
-      - Bridge  = bright attack  -> LOWER pick_position (≈0.1)
-      - Neck    = dark attack    -> HIGHER pick_position (≈0.9)
-    If your synth uses the opposite convention, flip the sign (see comment below).
+    Bridge -> bright (low pos); Neck -> dark (high pos).
+    Map [0,1] brightness -> [0.1, 0.9] (inverted).
     """
-    # normalize brightness_attack to [0,1] using a robust cap (BA_MAX from your scans)
-    ba_norm = float(np.clip(bright_attack / BA_MAX, 0.0, 1.0))
-    # Inverted mapping: bright -> near bridge -> low; dark -> neck -> high
-    pick_pos = 0.9 - 0.8 * ba_norm  # result in [0.1, 0.9]
-    # If your synth expects 0.1=neck and 0.9=bridge, use: pick_pos = 0.1 + 0.8 * ba_norm
-    return float(np.clip(pick_pos, 0.1, 0.9))
+    return float(np.clip(0.92 - 0.82 * bright, 0.1, 0.9))
 
 def targets_from_npz(npz_dict, sr, hop, fmin_hz=30.0, fmax_hz=12000.0,
-                     decay_min=0.08, decay_max=0.90):
+                     decay_min=0.08, decay_max=0.90,
+                     attack_ms=40.0, attack_weight=0.4):
     """
     Build the 6D target vector from one .npz dictionary.
-    NOTE: decay_t60 is *clamped* into [decay_min, decay_max] to match config spec.
+
+    Improvements for short sounds:
+      - Compute 'brightness_attack' on a short window after onset_frame (≈40 ms).
+      - If available, also compute attack brightness on the percussive mel (mel_p).
+      - Fuse global and attack brightness to better reflect near-bridge picking.
+
+    NOTE: decay_t60 is clamped into [decay_min, decay_max].
     """
-    f0    = npz_dict["f0"].astype(float)
-    vuv   = npz_dict["vuv"].astype(float)
-    loud  = npz_dict["loud"].astype(float)  # dB
-    mel   = npz_dict["mel"].astype(float)   # (n_mels, T)
+    # Required features
+    f0   = npz_dict["f0"].astype(float)
+    vuv  = npz_dict["vuv"].astype(float)
+    loud = npz_dict["loud"].astype(float)   # dB
+    mel  = npz_dict["mel"].astype(float)    # (n_mels, T)
+
+    # Optional features
     mel_h = npz_dict.get("mel_h", None)
     mel_p = npz_dict.get("mel_p", None)
+    onset_frame = int(npz_dict.get("onset_frame", 0))
 
-    # Pitch (robust median on voiced)
+    # --- Core acoustic targets ---
     pitch_hz  = robust_median_f0(f0, vuv, fmin=20.0)
 
-    # Decay T60 from loudness slope, clamped to spec
     decay_raw = estimate_t60_from_loudness_db(loud, sr, hop)
     decay_t60 = float(np.clip(decay_raw, decay_min, decay_max))
 
-    # Brightness (global) and attack brightness
+    # Global brightness over full note
     bright_global = spectral_brightness_ratio(mel)
-    bright_attack = spectral_brightness_ratio_attack(mel, sr, hop, win_ms=ATTACK_WIN_MS)
 
-    # Noise mix (if H/N decomposition is available)
+    # Attack brightness over a short post-onset window
+    win_frames = max(3, int(round((attack_ms / 1000.0) * sr / hop)))
+    a_start = int(np.clip(onset_frame, 0, mel.shape[1] - 1))
+    a_end   = int(np.clip(a_start + win_frames, a_start + 1, mel.shape[1]))
+
+    bright_attack = spectral_brightness_ratio_slice(mel, a_start, a_end)
+
+    # If percussive mel is present, take the max with its attack brightness
+    if mel_p is not None and mel_p.size > 0:
+        try:
+            ba_p = spectral_brightness_ratio_slice(mel_p.astype(float), a_start, a_end)
+            bright_attack = max(bright_attack, ba_p)
+        except Exception:
+            pass
+
+    # Fuse global and attack brightness (heavier weight on global by default)
+    w_att = float(np.clip(attack_weight, 0.0, 1.0))
+    bright_mix = float(np.clip((1.0 - w_att) * bright_global + w_att * bright_attack, 0.0, 1.0))
+
+    # Noise proportion from HPSS
     noise_mix = noise_mix_from_hn(mel_h, mel_p)
 
-    # Damping heuristic from decay
+    # Heuristics
+    # Higher decay -> lower damping; keep the same mapping.
     damping = float(np.clip(1.0 - (decay_t60 - 0.05) / (2.0 - 0.05), 0.0, 1.0))
+    # Use mixed brightness (global+attack) to infer pick position
+    pick_pos = pick_position_from_brightness(bright_mix)
 
-    # Pick position from attack brightness (more informative than global)
-    pick_pos = pick_position_from_brightness_attack(bright_attack)
-
-    # Return order must match your YAML 'synth.params' order.
-    # If you still want to expose both bright_global and damping as before:
+    # Return vector in real units where applicable
     return np.array(
-        [pitch_hz, decay_t60, bright_global, damping, pick_pos, noise_mix],
+        [pitch_hz, decay_t60, bright_mix, damping, pick_pos, noise_mix],
         dtype=np.float32
     )
