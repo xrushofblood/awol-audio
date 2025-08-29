@@ -286,7 +286,7 @@ def main():
     expected = int(mapper_cfg["model"]["in_dim"])
     assert d_text == expected, (
         f"Text embedding dim {d_text} != mapper in_dim {expected}. "
-        f"Set text_encoder=clap in config (oppure ri-addestra un mapper con in_dim={d_text})."
+        f"Set text_encoder=clap in config (or retrain a mapper with in_dim={d_text})."
     )
 
     # predict audio embedding

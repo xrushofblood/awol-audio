@@ -3,7 +3,7 @@ device: "cpu"
 paths:
   audio_emb_dir: "data/real/processed/embeddings/audio"
   npz_dir:        "data/real/processed/npz"
-  ckpt_dir:       "checkpoints/paramreg_v2"
+  ckpt_dir:       "checkpoints/paramreg_v3"
 
 audio:
   sample_rate: 44100

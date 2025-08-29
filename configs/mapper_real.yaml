@@ -1,32 +1,35 @@
-# Device
-device: "cpu"
+device: "auto"
 
-# Dirs (per-file embeddings + index real)
 paths:
-  text_emb_dir: "data/real/processed/embeddings/text"
-  audio_emb_dir: "data/real/processed/embeddings/audio"
-  index_dir:     "data/real/processed/index"
+  text_emb_dir: "data/real/processed/embeddings/text"       # where you save the .text.npy (512d) files
+  audio_emb_dir: "data/real/processed/embeddings/audio"     # where the .audio.npy files are located (512d)
+  npz_dir:       "data/real/processed/npz"                  # .npz for param targets
   ckpt_dir:      "checkpoints/mapper_real"
+  index_dir:     "data/real/processed/index"                # (only for evaluate_mapper)
+  paramreg_ckpt: "checkpoints/paramreg_v3/paramreg_best.pt" # your super paramreg
+  params_config: "configs/params_real.yaml"                 # same as used for paramreg
 
-# Model
 model:
   in_dim: 512
   hidden: [512, 512]
   out_dim: 512
   dropout: 0.1
-  norm_out: true   # L2-normalize prediction before cosine loss
+  norm_out: true
 
-# Training
 train:
-  batch_size: 8        
-  epochs: 200         
-  lr: 0.001
-  weight_decay: 0.0001
-  val_ratio: 0.2
   seed: 42
-  loss: "cosine"
+  val_ratio: 0.2
+  batch_size: 16
+  epochs: 200
+  lr: 0.0008
+  weight_decay: 0.00001
   early_stop_patience: 20
+  loss: "cosine"        # loss in embedding space
 
-# Evaluation
-eval:
-  topk: 5
+  # >>> weights of the two components
+  lambda_embed: 0.4
+  lambda_param: 0.6
+
+  # >>> loss in parameter space (in [0,1])
+  param_loss: "huber"
+  param_beta: 0.05

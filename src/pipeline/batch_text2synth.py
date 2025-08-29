@@ -16,10 +16,10 @@ def main():
             continue
         cmd = [
             sys.executable, "-m", "src.pipeline.text2synth",
-            "--config", args.config, "--prompt", p
+            "--config", args.config, "--query", p
         ]
         if args.no_neigh:
-            cmd.append("--no-neigh")
+            cmd += ["topk", "0"]
         print(">>", " ".join(cmd))
         subprocess.run(cmd, check=True)
 

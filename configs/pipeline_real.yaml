@@ -11,13 +11,13 @@ paths:
   # embeddings audio to retrieve neighbour vectors
   audio_emb_dir: "data/real/processed/embeddings/audio"
   # output synth
-  out_dir: "data/real/results/synth_out"
+  out_dir: "data/real/results/test3"
 
   mapper_config: "configs/mapper_real.yaml"
   params_config:  "configs/params_real.yaml"
 
   mapper_ckpt: "checkpoints/mapper_real/mapper_best.pt"
-  param_ckpt:  "checkpoints/paramreg_v2/paramreg_best.pt"
+  param_ckpt:  "checkpoints/paramreg_v3/paramreg_best.pt"
 
 # audio render
 audio:
