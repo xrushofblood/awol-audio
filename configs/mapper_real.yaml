@@ -1,35 +1,43 @@
 device: "auto"
 
 paths:
-  text_emb_dir: "data/real/processed/embeddings/text"       # where you save the .text.npy (512d) files
-  audio_emb_dir: "data/real/processed/embeddings/audio"     # where the .audio.npy files are located (512d)
-  npz_dir:       "data/real/processed/npz"                  # .npz for param targets
-  ckpt_dir:      "checkpoints/mapper_real"
-  index_dir:     "data/real/processed/index"                # (only for evaluate_mapper)
-  paramreg_ckpt: "checkpoints/paramreg_v4/paramreg_best.pt" # your super paramreg
-  params_config: "configs/params_real.yaml"                 # same as used for paramreg
+  text_emb_dir: "data/real/processed/embeddings/text"
+  audio_emb_dir: "data/real/processed/embeddings/audio"
+  npz_dir:  "data/real/processed/npz"
+  ckpt_dir: "checkpoints/mapper_real"
+  index_dir: "data/real/processed/index"
+  paramreg_ckpt: "checkpoints/paramreg_v8/paramreg_best.pt"
+  params_config: "configs/params_real.yaml"
+
+normalize_embeddings: true
 
 model:
   in_dim: 512
   hidden: [512, 512]
   out_dim: 512
-  dropout: 0.1
+  dropout: 0.10
   norm_out: true
 
 train:
   seed: 42
   val_ratio: 0.2
   batch_size: 16
-  epochs: 200
-  lr: 0.0008
+  epochs: 250
+  lr: 0.001
   weight_decay: 0.00001
-  early_stop_patience: 20
-  loss: "cosine"        # loss in embedding space
+  early_stop_patience: 25
 
-  # >>> weights of the two components
-  lambda_embed: 0.4
-  lambda_param: 0.6
+  loss: "cosine"
+  lambda_embed: 0.3
+  lambda_param: 0.70
 
-  # >>> loss in parameter space (in [0,1])
   param_loss: "huber"
-  param_beta: 0.05
+  param_beta: 0.02
+
+  param_loss_weights:
+    decay_t60: 2.0
+    pitch_hz: 2.0
+    brightness: 1.0
+    damping: 1.2
+    pick_position: 1.0
+    noise_mix: 1.0

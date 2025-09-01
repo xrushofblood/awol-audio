@@ -19,7 +19,7 @@ def main():
             "--config", args.config, "--query", p
         ]
         if args.no_neigh:
-            cmd += ["topk", "0"]
+            cmd += ["--topk", "0"]
         print(">>", " ".join(cmd))
         subprocess.run(cmd, check=True)
 

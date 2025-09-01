@@ -16,4 +16,4 @@ paths:
   audio_emb_dir: "data/real/processed/embeddings/audio" 
 
   # retrieval index (FAISS files live here)
-  index_dir: "data/real/processed/index"
+  index_dir: "data/real/processed/index" 
