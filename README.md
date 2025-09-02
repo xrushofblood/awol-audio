@@ -99,7 +99,7 @@ Note: the small scale is by design; the model trains quickly and produces accept
       Config: `configs/pipeline.yaml` (paths to checkpoints, output dir, render settings, optional retrieval).
 
 ### 6) Diagnostics
-      These scripts do not belong to the strict training pipeline, but are useful for quality control:
+  These scripts do not belong to the strict training pipeline, but are useful for quality control:
 
   - `src/analysis/scan_npz_dataset.py`
           Scans .npz and writes a CSV report (range checks, voiced ratio, late peaks, brightness thresholds, etc.).
