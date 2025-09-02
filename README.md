@@ -33,70 +33,67 @@ Note: the small scale is by design; the model trains quickly and produces accept
 ## Pipeline Modules (what each script does)
 
 ### 1) Analysis 
-      - `src/analysis/preprocess.py`
+  - `src/analysis/preprocess.py`
           Loads raw WAVs, harmonizes sample rate/mono, organizes splits/IDs, and prepares paths for downstream steps.
 
-      - `src/analysis/features.py`
+  - `src/analysis/features.py`
           Computes analysis targets from .npz intermediates (pitch in Hz, T60/decay, brightness, damping, pick position, …).
           These targets are used to supervise ParamReg training and to evaluate predictions in real units.
 
-      - `src/text_encoder/extract_text_embeddings.py`
+  - `src/text_encoder/extract_text_embeddings.py`
           Encodes all text prompts into text embeddings (e.g., Sentence-Transformers/CLAP text head) and writes *.text.npy.
 
-      - `src/audio_encoder/extract_audio_embeddings.py`
+  - `src/audio_encoder/extract_audio_embeddings.py`
           Encodes all audio into audio embeddings (e.g., CLAP audio head) and writes *.audio.npy.
 
-      Configs: `configs/base.yaml` (preprocess + features), `configs/embeddings.yaml` (text/audio encoders).
+  Configs: `configs/base.yaml` (preprocess + features), `configs/embeddings.yaml` (text/audio encoders).
 
 ### 2) Retrieval (optional but useful)
-      - `scripts/build_faiss_index.py`
+  - `scripts/build_faiss_index.py`
           Packs L2-normalized audio embeddings into a FAISS (Facebook AI Similarity Index) Inner-Product (cosine) index + names.npy.
           Used by evaluation scripts to compute retrieval metrics (R@1/5/10) and (optionally) for neighbor blending in the pipeline.
 
-      Config: uses the same embedding output dirs as `configs/embeddings.yaml`.
+  Config: uses the same embedding output dirs as `configs/embeddings.yaml`.
 
 ### 3) Synth / Parameter Regressor
-      - `src/synth/train_params.py`
+   - `src/synth/train_params.py`
           Trains ParamReg: a regressor from audio embedding → normalized synth parameters [0..1] (per spec).
           Normalization ranges/scales (e.g., log_hz for pitch) come from configs/params.yaml.
 
-      - `src/synth/evaluate_params.py`
+  - `src/synth/evaluate_params.py`
           Loads a checkpoint and reports MAE (Mean Absolute Error) per parameter in real units (e.g., Hz for pitch, seconds for T60).
           Useful to verify parameterization quality.
 
-      (Internals in this folder)
-      `param_regressor.py`, `targets_from_npz.py`, `predict_params.py` — the first two are the core model & target extraction, the last one is a inference-only utility;
+  (Internals in this folder)
+  `param_regressor.py`, `targets_from_npz.py`, `predict_params.py` — the first two are the core model & target extraction, the last one is a inference-only utility;
 
-      Config: `configs/params.yaml` (audio section + synth.params specs + model hyper-params).
-    
-### 3.1) Lightweight Synthesizer (Karplus–Strong pluck)
-     
+  Config: `configs/params.yaml` (audio section + synth.params specs + model hyper-params).)
 
 ### 4) Mapper (Text -> Audio-Embedding)
-      - `src/mapper/train_mapper.py`
+  - `src/mapper/train_mapper.py`
           Trains an MLP to map text embeddings -> audio embeddings.
           Loss = embedding loss (cosine/MSE) + auxiliary param loss: predicted audio embeddings are fed into the frozen ParamReg, and the resulting parameters are compared to ground-truth targets [0..1].
           This encourages the mapper to land in semantically meaningful regions of the audio-embedding space.
 
-      - `src/mapper/evaluate_mapper.py`
+  - `src/mapper/evaluate_mapper.py`
           Reports mean cosine between predicted and true audio embeddings on the validation split, and R@k if a FAISS index is present.
           Also runs the frozen ParamReg on predicted embeddings and prints per-parameter MAE in real units.
 
-      Config: `configs/mapper.yaml` (model size, losses, λ weights, paths to embeddings/npz and to the ParamReg checkpoint).
+  Config: `configs/mapper.yaml` (model size, losses, λ weights, paths to embeddings/npz and to the ParamReg checkpoint).
 
 ### 5) Pipeline (Text -> Audio)
-      - `src/pipeline/text2synth.py`
+  - `src/pipeline/text2synth.py`
           End-to-end inference from a prompt:
           prompt -> text emb -> mapper -> audio emb -> ParamReg -> synth params -> render WAV.
           Optionally, can be disabled neighbor blending and set topk=0.
-          
-          *Renderer*: a minimal Karplus–Strong plucked-string synthesizer (fast, lightweight), purpose-built for pluck-like sounds. It’s used to audibilize the predicted parameters end-to-end; full synthesis details and trade-offs are discussed in the report.
+
+  **Renderer**: a minimal Karplus–Strong plucked-string synthesizer (fast, lightweight), purpose-built for pluck-like sounds. It’s used to audibilize the predicted parameters end-to-end; full synthesis details and trade-offs are discussed in the report.
           
 
-      - `src/pipeline/batch_text2synth.py`
+  - `src/pipeline/batch_text2synth.py`
           Batch version that reads a CSV of prompts (e.g., tests/prompts_text2synth.csv).
 
-      - `src/pipeline/collect_text2synth_csv.py`
+  - `src/pipeline/collect_text2synth_csv.py`
           Helper to build CSVs of prompts for repeated experiments.
 
       Config: `configs/pipeline.yaml` (paths to checkpoints, output dir, render settings, optional retrieval).
@@ -104,32 +101,31 @@ Note: the small scale is by design; the model trains quickly and produces accept
 ### 6) Diagnostics
       These scripts do not belong to the strict training pipeline, but are useful for quality control:
 
-      - `src/analysis/scan_npz_dataset.py`
+  - `src/analysis/scan_npz_dataset.py`
           Scans .npz and writes a CSV report (range checks, voiced ratio, late peaks, brightness thresholds, etc.).
           Used to verify dataset health before training.
 
-      - `src/retrieval/retrieve.py`, `src/retrieval/batch_free_query.py`
+  - `src/retrieval/retrieve.py`, `src/retrieval/batch_free_query.py`
           Utilities to query the FAISS index by text or embedding to inspect nearest neighbors.
       
-      - `src/analysis/validate.py`, `src/analysis/scan_npz_dataset.py`
+  - `src/analysis/validate.py`, `src/analysis/scan_npz_dataset.py`
           Assorted checks/visualizations
 
-      - `scripts/analyze_generated_audio.py`
+  - `scripts/analyze_generated_audio.py`
           Summaries/statistics over rendered audio (e.g., distributions vs. targets).
 
       These tools are not required to run the main demo, but they help document/justify behavior in the report.
 
-
 ## Reproducibility 
   ### Presequisites
-    - Python: tested on version 3.8 and 3.10. Works on both versions. 
-    - Create and activate a virtual environment 
-    - Install dependencies: 
+  - Python: tested on version 3.8 and 3.10. Works on both versions. 
+  - Create and activate a virtual environment 
+  - Install dependencies: 
       `pip install -r requirements.txt`
-    - Download the clap_630k pre-trained model (1.73 GB)
+  - Download the clap_630k pre-trained model (1.73 GB)
       `wget https://huggingface.co/lukewys/laion_clap/resolve/main/630k-audioset-best.pt -O checkpoints/clap/clap_630k.pt`
       (once in cache it can be delated and is still usable)
-    - Run from the repository root
+  - Run from the repository root
   
   ### Data and artifacts present in the repo
     - Raw data: included (data/raw/).
