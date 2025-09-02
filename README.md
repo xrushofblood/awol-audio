@@ -166,14 +166,14 @@ Note: the small scale is by design; the model trains quickly and produces accept
 
   **Optional: Execution with retrieval**
     After the audio embedding extraction (step 4 of the pipeline):
-    - Build the FAISS index on audio embeddings (needed for R@k and any neighbor-based features)
+  - Build the FAISS index on audio embeddings (needed for R@k and any neighbor-based features)
       `python scripts/build_faiss_index.py`
 
-    - Retrieval execution (top-k > 0)
+- Retrieval execution (top-k > 0)
      e.g. k = 5
       `python -m src.pipeline.text2synth --config configs/pipeline.yaml --query "low pitched pluck with long sustain" --topk 5`
 
-    What happens: the system takes the embedding predicted by the mapper and retrieves the 5 most similar audios from the FAISS index; then combines them (usually average/weighted-average, according to your internal settings) before passing the result to the ParamReg -> summary parameters -> WAV.
+  What happens: the system takes the embedding predicted by the mapper and retrieves the 5 most similar audios from the FAISS index; then combines them (usually average/weighted-average, according to your internal settings) before passing the result to the ParamReg -> summary parameters -> WAV.
 
     - Variant with batch retrieval (remove --no-neigh)
       `python -m src.pipeline.batch_text2synth --config configs/pipeline.yaml --csv tests/prompts_text2synth.csv`
