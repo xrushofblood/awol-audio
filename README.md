@@ -68,6 +68,9 @@ Note: the small scale is by design; the model trains quickly and produces accept
       `param_regressor.py`, `targets_from_npz.py`, `predict_params.py` — the first two are the core model & target extraction, the last one is a inference-only utility;
 
       Config: `configs/params.yaml` (audio section + synth.params specs + model hyper-params).
+    
+### 3.1) Lightweight Synthesizer (Karplus–Strong pluck)
+     
 
 ### 4) Mapper (Text -> Audio-Embedding)
       - `src/mapper/train_mapper.py`
@@ -85,7 +88,10 @@ Note: the small scale is by design; the model trains quickly and produces accept
       - `src/pipeline/text2synth.py`
           End-to-end inference from a prompt:
           prompt -> text emb -> mapper -> audio emb -> ParamReg -> synth params -> render WAV.
-          You can optionally disable neighbor blending (if your config supports it) and set topk=0.
+          Optionally, can be disabled neighbor blending and set topk=0.
+          
+          *Renderer*: a minimal Karplus–Strong plucked-string synthesizer (fast, lightweight), purpose-built for pluck-like sounds. It’s used to audibilize the predicted parameters end-to-end; full synthesis details and trade-offs are discussed in the report.
+          
 
       - `src/pipeline/batch_text2synth.py`
           Batch version that reads a CSV of prompts (e.g., tests/prompts_text2synth.csv).
@@ -122,6 +128,7 @@ Note: the small scale is by design; the model trains quickly and produces accept
       `pip install -r requirements.txt`
     - Download the clap_630k pre-trained model (1.73 GB)
       `wget https://huggingface.co/lukewys/laion_clap/resolve/main/630k-audioset-best.pt -O checkpoints/clap/clap_630k.pt`
+      (once in cache it can be delated and is still usable)
     - Run from the repository root
   
   ### Data and artifacts present in the repo
