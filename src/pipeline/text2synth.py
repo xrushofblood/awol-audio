@@ -21,7 +21,7 @@ from pathlib import Path
 import torch
 import soundfile as sf
 
-# Mapper & ParamRegressor (tuoi moduli)
+# Mapper & ParamRegressor
 from src.mapper.mapper_mlp import MLPMapper
 from src.synth.param_regressor import ParamRegressor
 
@@ -61,9 +61,16 @@ def get_text_embedding(prompt: str, cfg: dict, device: str) -> torch.Tensor:
     if enc == "clap":
         # LAION-CLAP text encoder
         from laion_clap import CLAP_Module
-        clap_ckpt = cfg["model"]["laion_variant"]
         clap = CLAP_Module(enable_fusion=False, device=device)
-        clap.load_ckpt(clap_ckpt)
+        ckpt = (cfg.get("model") or {}).get("laion_variant", "")
+        try:
+            if ckpt and Path(ckpt).exists():
+                clap.load_ckpt(ckpt)
+            else:
+                clap.load_ckpt()  # auto-download da HF cache
+        except Exception as e:
+            raise RuntimeError(f"Failed to load CLAP text encoder: {e}")
+        
         with torch.no_grad():
             e = clap.get_text_embedding([prompt])  # (1,512), numpy
         e = e.astype(np.float32)[0]

@@ -1,18 +1,29 @@
+# ----- Core -----
 numpy
 scipy
 pandas
+pyyaml
+tqdm
+
+# ----- CLAP -----
+huggingface_hub
+
+# ----- Audio I/O + analysis + playback -----
 librosa==0.10.2.post1
 soundfile
-tqdm
-pyyaml
+sounddevice
 pyloudnorm
+
+# ----- Torch Stack -----
 torch==2.3.1
 torchaudio==2.3.1
-torchcrepe
 torchvision==0.18.1
 
+# ----- ML / Embeddings / Retrieval -----
+scikit-learn
 laion-clap
 faiss-cpu
 sentence-transformers
 
-scikit-learn
+# ----- Pitch / F0 -----
+torchcrepe

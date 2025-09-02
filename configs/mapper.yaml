@@ -1,33 +1,44 @@
-# Device
-device: "cpu"   
+# configs/mapper.yaml
+device: "auto"
 
-# Dirs
 paths:
   text_emb_dir: "data/processed/embeddings/text"
   audio_emb_dir: "data/processed/embeddings/audio"
-  index_dir:     "data/processed/index"      
-  ckpt_dir:      "checkpoints/mapper"
+  npz_dir:  "data/processed/npz"
+  ckpt_dir: "checkpoints/mapper"
+  index_dir: "data/processed/index"
+  paramreg_ckpt: "checkpoints/paramreg/paramreg_best.pt"
+  params_config: "configs/params.yaml"
 
-# Model
+normalize_embeddings: true
+
 model:
-  in_dim: 512      # CLAP dim
+  in_dim: 512
   hidden: [512, 512]
   out_dim: 512
-  dropout: 0.1
-  norm_out: true   # normalize predicted vector before loss
+  dropout: 0.10
+  norm_out: true
 
-# Training
 train:
-  batch_size: 16
-  epochs: 20
-  lr: 0.001 
-  weight_decay: 0.0001 
-  val_ratio: 0.2
   seed: 42
+  val_ratio: 0.2
+  batch_size: 16
+  epochs: 250
+  lr: 0.001
+  weight_decay: 0.00001
+  early_stop_patience: 25
+
   loss: "cosine"
-  early_stop_patience: 5
+  lambda_embed: 0.3
+  lambda_param: 0.70
 
+  param_loss: "huber"
+  param_beta: 0.02
 
-# Evaluation
-eval:
-  topk: 5
+  param_loss_weights:
+    decay_t60: 2.0
+    pitch_hz: 2.0
+    brightness: 1.0
+    damping: 1.2
+    pick_position: 1.0
+    noise_mix: 1.0

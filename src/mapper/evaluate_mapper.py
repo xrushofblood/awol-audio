@@ -6,16 +6,20 @@ import torch
 import faiss
 from sklearn.model_selection import train_test_split
 
+
 from src.mapper.mapper_mlp import MLPMapper
 from src.synth.param_regressor import ParamRegressor
 from src.synth.targets_from_npz import targets_from_npz
 
+
 EPS = 1e-9
+
 
 # ---------- utils ----------
 def l2norm(x: np.ndarray) -> np.ndarray:
     n = np.linalg.norm(x, axis=-1, keepdims=True) + EPS
     return x / n
+
 
 def load_names(text_dir, audio_dir):
     text = {p.stem.replace(".text","") for p in Path(text_dir).glob("*.text.npy")}
@@ -25,9 +29,11 @@ def load_names(text_dir, audio_dir):
         raise RuntimeError("No paired embeddings (.text.npy & .audio.npy) found.")
     return common
 
+
 def load_matrix(dir_path: str, names: list, suffix: str) -> np.ndarray:
     X = [np.load(Path(dir_path) / f"{n}.{suffix}.npy").astype("float32") for n in names]
     return l2norm(np.stack(X, axis=0)).astype("float32")
+
 
 def to_unit(x, spec):
     lo, hi = float(spec["min"]), float(spec["max"])
@@ -40,6 +46,7 @@ def to_unit(x, spec):
     else:
         return (x - lo) / (hi - lo + 1e-9)
 
+
 def from_unit(u, spec):
     lo, hi = float(spec["min"]), float(spec["max"])
     scale = spec.get("scale", "linear")
@@ -50,6 +57,7 @@ def from_unit(u, spec):
         return (2.0 ** x_log).astype(np.float32)
     else:
         return (lo + u * (hi - lo)).astype(np.float32)
+
 
 def load_targets01(npz_dir: str, names: list, audio_cfg: dict, specs: list) -> np.ndarray:
     Y_real = []
@@ -69,6 +77,7 @@ def load_targets01(npz_dir: str, names: list, audio_cfg: dict, specs: list) -> n
         Y01[:, j] = np.clip(to_unit(Y_real[:, j], spec), 0.0, 1.0)
     return Y01
 
+
 def load_faiss(index_dir: str):
     idx_p = Path(index_dir) / "faiss_ip.index"
     nms_p = Path(index_dir) / "names.npy"
@@ -78,6 +87,7 @@ def load_faiss(index_dir: str):
     names = np.load(nms_p, allow_pickle=True).tolist()
     return index, names
 
+
 # ---------- main ----------
 def main():
     ap = argparse.ArgumentParser()
@@ -85,7 +95,9 @@ def main():
     ap.add_argument("--ckpt",   default="checkpoints/mapper_real/mapper_best.pt")
     args = ap.parse_args()
 
+
     cfg = yaml.safe_load(open(args.config, "r"))
+
 
     text_dir   = cfg["paths"]["text_emb_dir"]
     audio_dir  = cfg["paths"]["audio_emb_dir"]
@@ -94,13 +106,15 @@ def main():
     param_ckpt = cfg["paths"]["paramreg_ckpt"]
     params_cfg_path = cfg["paths"]["params_config"]
 
-    # leggi specs + audio cfg dal params_config (quello usato per il paramreg)
+
+    # read specs + audio cfg from params_config (the one used by paramreg)
     params_cfg = yaml.safe_load(open(params_cfg_path, "r"))
     specs = params_cfg["synth"]["params"]
     audio_cfg = params_cfg["audio"]
     param_names = [p["name"] for p in specs]
 
-    # split come nel training (val set)
+
+    # split as in training (validation set)
     all_names = load_names(text_dir, audio_dir)
     _, va_names = train_test_split(
         all_names, test_size=cfg["train"]["val_ratio"],
@@ -108,10 +122,12 @@ def main():
     )
     names = va_names
 
-    # dati
-    T = load_matrix(text_dir,  names, "text")   # (N,512)
-    A = load_matrix(audio_dir, names, "audio")  # (N,512)
-    Y01 = load_targets01(npz_dir, names, audio_cfg, specs)  # (N,P)
+
+    # data
+    T = load_matrix(text_dir,  names, "text")   # (N, 512)
+    A = load_matrix(audio_dir, names, "audio")  # (N, 512)
+    Y01 = load_targets01(npz_dir, names, audio_cfg, specs)  # (N, P)
+
 
     # mapper
     model = MLPMapper(
@@ -126,16 +142,19 @@ def main():
     model.load_state_dict(state)
     model.eval()
 
-    # pred embedding audio
+
+    # predict audio embedding
     with torch.no_grad():
-        P = model(torch.from_numpy(T)).numpy()  # (N,512)
+        P = model(torch.from_numpy(T)).numpy()  # (N, 512)
     P = l2norm(P).astype("float32")
 
-    # cosine vs embedding audio reale
+
+    # cosine similarity vs. real audio embedding
     cos = np.sum(P * A, axis=1)
     print(f"[EVAL] mean cosine similarity (val): {float(np.mean(cos)):.4f}")
 
-    # retrieval (se indice presente)
+
+    # retrieval (if index is present)
     index, index_names = load_faiss(index_dir)
     if index is not None and index.ntotal > 0:
         maxk = 10
@@ -153,7 +172,8 @@ def main():
     else:
         print("[EVAL] Retrieval: index non trovato o vuoto — salto R@k.")
 
-    # paramreg congelato -> predizione parametri (in [0,1])
+
+    # frozen paramreg -> parameter prediction (in [0,1])
     p_ckpt = torch.load(param_ckpt, map_location="cpu")
     p_cfg  = p_ckpt.get("cfg", None)
     if p_cfg is None:
@@ -164,28 +184,34 @@ def main():
         hidden  = p_cfg["model"]["hidden"]
         dropout = p_cfg["model"]["dropout"]
 
+
     paramreg = ParamRegressor(in_dim=in_dim, hidden=hidden, out_dim=out_dim, dropout=dropout)
     paramreg.load_state_dict(p_ckpt["state_dict"] if "state_dict" in p_ckpt else p_ckpt)
     paramreg.eval()
+
 
     with torch.no_grad():
         pred01 = paramreg(torch.from_numpy(P)).numpy()
     pred01 = np.clip(pred01, 0.0, 1.0)
 
-    # MAE per-parameter in unità reali
+
+    # per-parameter MAE in real units
     mae_real = {}
     for j, spec in enumerate(specs):
         y_real    = from_unit(Y01[:, j], spec)
         pred_real = from_unit(pred01[:, j], spec)
         mae_real[param_names[j]] = float(np.mean(np.abs(pred_real - y_real)))
 
-    # stampa rapida per pitch/decay
+
+    # quick print for pitch/decay
     if "pitch_hz" in mae_real:
         print(f"[EVAL] MAE pitch_hz: {mae_real['pitch_hz']:.3f} Hz")
     if "decay_t60" in mae_real:
         print(f"[EVAL] MAE decay_t60: {mae_real['decay_t60']:.3f} s")
 
+
     print("[EVAL] per-parameter MAE (real units):", {k: round(v, 4) for k, v in mae_real.items()})
+
 
 if __name__ == "__main__":
     main()

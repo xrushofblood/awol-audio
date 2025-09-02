@@ -1,6 +1,6 @@
 # src/analysis/features.py
 # Purpose:
-#   Extract frame-aligned audio features for AWOL-audio (Day 1):
+#   Extract frame-aligned audio features for AWOL-audio:
 #   - mel spectrogram (and HPSS-derived mel envelopes)
 #   - loudness proxy (RMS dB)
 #   - f0 + periodicity (torchcrepe)

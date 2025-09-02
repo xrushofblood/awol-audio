@@ -1,0 +1,40 @@
+# configs/pipeline.yaml
+device: "auto"  
+
+text_encoder: "clap"
+model:
+  #laion_variant: "checkpoints/clap/clap_630k.pt"
+  sbert_name: "sentence-transformers/all-MiniLM-L6-v2"
+
+paths:
+  # FAISS
+  index_dir: "data/processed/index"
+  # embeddings audio to retrieve neighbour vectors
+  audio_emb_dir: "data/processed/embeddings/audio"
+  # output synth
+  out_dir: "outputs"
+
+  mapper_config: "configs/mapper.yaml"
+  params_config:  "configs/params.yaml"
+
+  mapper_ckpt: "checkpoints/mapper/mapper_best.pt"
+  param_ckpt:  "checkpoints/paramreg/paramreg_best.pt"
+
+# audio render
+audio:
+  sample_rate: 44100
+  
+  default_seconds: 1.20
+
+  adaptive_length: true
+
+#fusion between predicted embedding and FAISS 
+neighbors:
+  use: true         # if false: only the mapper predicted embedding is used 
+  k: 3
+  alpha: 0.35       # 0 -> only pred; 1 -> only average neighbours 
+  show: 5           # how many neighbours showed in the log 
+
+
+post:
+  target_peak_db: -1.0
