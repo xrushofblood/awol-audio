@@ -1,18 +1,19 @@
-device: "cpu"  # use "cpu" for now; switch to "cuda" later or keep "auto"
+# configs/embeddings.yaml
+device: "auto" 
 
 model:
   name: "laion_clap"
-  laion_variant: "checkpoints/clap/clap_630k.pt"
+  laion_variant: "checkpoints/clap/clap_630k.pt"   
   sbert_name: "sentence-transformers/all-MiniLM-L6-v2"
 
 paths:
   # text side
-  meta_csv: "data/meta/prompts.csv"
+  meta_csv: "data/meta/real_prompts.csv"
   text_emb_dir: "data/processed/embeddings/text"
 
   # audio side
-  processed_wav_dir: "data/processed"              # where .wav live
-  audio_emb_dir: "data/processed/embeddings/audio" # *.audio.npy per file
+  processed_wav_dir: "data/raw"                 
+  audio_emb_dir: "data/processed/embeddings/audio" 
 
   # retrieval index (FAISS files live here)
-  index_dir: "data/processed/index"
+  index_dir: "data/processed/index" 

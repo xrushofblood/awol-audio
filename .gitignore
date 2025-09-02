@@ -6,12 +6,16 @@ __pycache__/
 *.pkl
 *.npz
 *.npy
+*.egg-info/
+build/
+dist/
 
 # Env
 .venv/
 env/
 venv/
-*.egg-info/
+.venv310/
+venv310
 
 # OS
 .DS_Store
@@ -21,16 +25,23 @@ Thumbs.db
 .vscode/
 
 # Audio files
-data/raw/*
-data/processed/*
-!data/raw/.gitkeep
+data/**
+!data/raw
+!data/raw/**
+!data/meta/
+!data/meta/**
 !data/processed/.gitkeep
-data/real/*
 
-#Pre-trained models
-checkpoints/
-*.pt
-*.pth 
+# keep small, precomputed audio embeddings + index
+!data/processed/embeddings/audio/
+!data/processed/embeddings/audio/*.audio.npy
+!data/processed/embeddings/audio/meta.json
+!data/processed/index/
+!data/processed/index/faiss_ip.index
+!data/processed/index/names.npy
 
 #Outputs audio
 outputs/
+
+#CLAP pre-trained model
+checkpoints/clap/clap_630k.pt

@@ -1,222 +1,204 @@
-# AWOL-Audio (Text-to-Audio Prototype)
+# AWOL-Audio Text-to-Synth Pipeline (Few-Shot, Fast to Train)
 
-This repository implements an **AWOL-inspired pipeline** for text-to-audio generation, starting with synthetic data and progressively extending to real datasets.
+This repository implements a **text-to-synthesis** pipeline that maps natural-language prompts (e.g., “high pitched wooden pluck, long sustain”) to **synth parameters** and renders audio.
+The design follows the **AWOL** philosophy: few examples, fast training, and a simple, modular stack you can re-run and inspect end-to-end.
 
+At a high level:
+
+1. **Preprocess** + **features** → compute analysis targets from audio (pitch, decay, brightness, …).
+
+2. **Embeddings** → extract text and audio embeddings (CLAP / Sentence-Transformers for text; CLAP for audio).
+
+3. **ParamReg** (pretrained, kept fixed) → learn to predict normalized synth parameters from audio-embedding space.
+
+4. **Mapper** → learn to map text embeddings → audio embeddings (with an auxiliary loss through ParamReg).
+
+5. **Pipeline** → at inference, a text prompt is encoded, mapped to an audio embedding, converted to synth params, and rendered.
+
+Optional: build a FAISS index for similarity/retrieval diagnostics (R@k) and/or neighbor blending (if enabled in configs/CLI).
 ---
 
-## Current Status
+## Dataset 
+36 audio examples, recorded manually on acoustic guitar (single plucks) + 36 text prompts, one per audio.
 
-### Day 1
-- Synthetic dataset generation:
-  - Created `make_synthetic_plucks.py` to generate short pluck sounds.
-  - Associated prompts stored in `data/meta/prompts.csv`.
-- Configuration:
-  - `configs/base.yaml` defines sample rate, hop size, frame size, and output paths.
-- Audio analysis modules (in `src/analysis/`):
-  - `audio_io.py` → I/O helpers.
-  - `preprocess.py` → normalization of raw audio.
-  - `features.py` → feature extraction (mel, f0, loudness, harmonic/noise decomposition).
-  - `validate.py` → checks dataset consistency with prompts.
-  - `inspect_npz.py` → inspects `.npz` feature files for shapes and value ranges.
-  - `consistency_check.py` → cross-check between audio, features, metadata.
-  - `smoke_test.py` → minimal run test.
-- Successfully ran:
-  - **Smoke test** (generation + preprocess).
-  - **Consistency check** (metadata ↔ audio ↔ npz).
-  - **Validate** (feature integrity).
-  - **Inspect NPZ** (manual inspection of mel, f0, vuv, loudness).
+Prompts cover a diverse set of attributes: high/low pitch, long/short sustain, neck/bridge, wooden/metallic, bright/crisp/dull, etc.
+This variety intentionally supports the few-shot setup (AWOL ethos).
 
-### Day 2
-- Embedding extraction:
-  - Added `configs/embeddings.yaml` with paths for text, audio, and FAISS index.
-  - Generated **text embeddings** from `data/meta/prompts.csv`.
-  - Generated **audio embeddings** from preprocessed `.wav`.
-  - Packed per-file embeddings into consolidated index (`faiss.index`, `ids.npy`).
-  - `embeddings_smoke_test.py` → minimal run test for embeddings pipeline.
-- Retrieval pipeline:
-  - Implemented with `src/retrieval/retrieve.py` and `src/retrieval/pack_embeddings.py`.
-  - CLAP model used for joint text/audio embedding space.
-  - Verified index rebuild and query system.
-- Query tests:
-  - Low-level descriptors (e.g., *pitch, decay, sustain, brightness*) worked very well.
-  - Mid-level descriptors (e.g., *metallic, wooden, harsh*) moderately successful.
-  - High-level/metaphorical descriptors (e.g., *harp-like, guitar-like*) less reliable.
-- Known issues solved:
-  - Fixed missing paths in config.
-  - Added `index_dir` for FAISS storage.
-  - Clarified CUDA vs CPU usage fallback.
-- Results:
-  - Retrieval produces **ranked list of `.audio` files** with similarity scores.
-  - Demonstrated consistent mapping between prompts and retrieved sounds.
+A first cleaning pass was done manually (trimming, coarse quality control). No automatic onset-trim tool is used in this repo.
 
----
+The dataset is self-produced and is included only as raw audio (no generated outputs are checked in).
 
-### Day 3 — Supervised Mapper (Text → Audio Embeddings)
-**Objective:**  
-1. Create a supervised **Mapper** from text embeddings → audio embeddings (CLAP space).  
-2. Train on synthetic pluck pairs (text/audio aligned by filename).  
-3. Evaluate with cosine similarity and indirect retrieval (predict → search in FAISS).  
+Note: the small scale is by design; the model trains quickly and produces acceptable audio for the majority of prompts, with known limitations (e.g., some “short sustain” sounding “long”). Those are discussed in the report; the README focuses on pipeline usage and reproducibility.
 
-**Steps implemented:**
-- **Setup**  
-  - Added `configs/mapper.yaml` with device, paths, model, training, and evaluation settings.  
-  - Installed `scikit-learn` for train/validation split.  
-  - Created checkpoint directory (`checkpoints/mapper`).  
+## Pipeline Modules (what each script does)
 
-- **Model**  
-  - Implemented `src/mapper/mapper_mlp.py`: a simple **MLP** mapping text embeddings → audio embeddings.  
-  - Supports multiple hidden layers, dropout, and optional L2 normalization of outputs.  
+### 1) Analysis 
+      - `src/analysis/preprocess.py`
+          Loads raw WAVs, harmonizes sample rate/mono, organizes splits/IDs, and prepares paths for downstream steps.
 
-- **Training**  
-  - `src/mapper/train_mapper.py` handles supervised training with cosine or MSE loss, AdamW optimizer, and early stopping.  
-  - Uses paired embeddings (`.text.npy` / `.audio.npy`) from Day 2.  
-  - Produces checkpoint `mapper_best.pt` with best validation loss.  
+      - `src/analysis/features.py`
+          Computes analysis targets from .npz intermediates (pitch in Hz, T60/decay, brightness, damping, pick position, …).
+          These targets are used to supervise ParamReg training and to evaluate predictions in real units.
 
-- **Evaluation**  
-  - `src/mapper/evaluate_mapper.py` computes:  
-    - Mean **cosine similarity** on validation pairs.  
-    - **Retrieval metrics**: Recall@1 and Recall@5 via FAISS index.  
+      - `src/text_encoder/extract_text_embeddings.py`
+          Encodes all text prompts into text embeddings (e.g., Sentence-Transformers/CLAP text head) and writes *.text.npy.
 
-- **Interactive usage**  
-  - `src/mapper/predict_and_retrieve.py`:  
-    - Loads a text embedding (e.g., `synthetic_pluck_012.text.npy`).  
-    - Predicts audio embedding with Mapper.  
-    - Retrieves top-K nearest neighbors from FAISS index.  
+      - `src/audio_encoder/extract_audio_embeddings.py`
+          Encodes all audio into audio embeddings (e.g., CLAP audio head) and writes *.audio.npy.
 
-- **Smoke test**  
-  - `src/mapper/mapper_smoke.py`: quick 2-epoch test to check training loop and decreasing loss.  
+      Configs: `configs/base.yaml` (preprocess + features), `configs/embeddings.yaml` (text/audio encoders).
 
-**Expected results:**  
-- A trained **mapper checkpoint** (`checkpoints/mapper/mapper_best.pt`).  
-- Validation metrics: cosine similarity + R@1, R@5 retrieval scores.  
-- Verified end-to-end flow: **text embedding → Mapper → predicted audio embedding → FAISS retrieval**.  
+### 2) Retrieval (optional but useful)
+      - `scripts/build_faiss_index.py`
+          Packs L2-normalized audio embeddings into a FAISS (Facebook AI Similarity Index) Inner-Product (cosine) index + names.npy.
+          Used by evaluation scripts to compute retrieval metrics (R@1/5/10) and (optionally) for neighbor blending in the pipeline.
 
+      Config: uses the same embedding output dirs as `configs/embeddings.yaml`.
 
-### Day 4 — Free Query & Prompt Fusion
-**Objective:** Extend Mapper usage to handle free-text queries and prompt combinations.  
+### 3) Synth / Parameter Regressor
+      - `src/synth/train_params.py`
+          Trains ParamReg: a regressor from audio embedding → normalized synth parameters [0..1] (per spec).
+          Normalization ranges/scales (e.g., log_hz for pitch) come from configs/params.yaml.
 
-**New features implemented:**
-- **Free Query Prediction**  
-  - `src/mapper/predict_free_query.py` allows predicting audio embeddings directly from **unseen textual prompts** (not limited to `prompts.csv`).  
-  - Example run:  
-    ```
-    python -m src.mapper.predict_free_query --config configs/mapper.yaml --ckpt checkpoints/mapper/mapper_best.pt --prompt "warm wooden pluck with short sustain" --topk 5
-    ```  
-  - Output: ranked list of nearest audio files, confirming generalization of Mapper.  
+      - `src/synth/evaluate_params.py`
+          Loads a checkpoint and reports MAE (Mean Absolute Error) per parameter in real units (e.g., Hz for pitch, seconds for T60).
+          Useful to verify parameterization quality.
 
-- **Prompt Fusion**  
-  - `src/tools/prompt_fusion.py` merges multiple prompts into a **blended embedding** before retrieval.  
-  - Example run:  
-    ```
-    python -m src.tools.prompt_fusion --config configs/mapper.yaml --ckpt checkpoints/mapper/mapper_best.pt --prompts "bright pluck" "sparkling pluck" "crisp short-decay tone" --topk 5
-    ```  
-  - Produces audio candidates matching **combined descriptors**.  
+      (Internals in this folder)
+      `param_regressor.py`, `targets_from_npz.py`, `predict_params.py` — the first two are the core model & target extraction, the last one is a inference-only utility;
 
-- **Batch Free Query**  
-  - `src/tools/batch_free.py` runs multiple unseen prompts at once (stored in `.txt` or `.csv`).  
-  - Results saved into `batch_free.csv` with columns: `prompt, rank, name, score`.  
-  - Example output:  
-    ```
-    bright metallic pluck with long sustain,1,synthetic_pluck_034.audio,0.9839
-    dark mellow pluck with short decay,1,synthetic_pluck_031.audio,0.9688
-    warm wooden tone with soft attack,1,synthetic_pluck_031.audio,0.9764
-    ```
-  - Confirms stable retrieval across diverse query styles.  
+      Config: `configs/params.yaml` (audio section + synth.params specs + model hyper-params).
 
-**Results:**  
-- Mapper successfully generalizes to **novel text prompts**.  
-- Prompt fusion allows richer, more expressive descriptions.  
-- Batch querying enables systematic evaluation across prompt sets.  
+### 4) Mapper (Text -> Audio-Embedding)
+      - `src/mapper/train_mapper.py`
+          Trains an MLP to map text embeddings -> audio embeddings.
+          Loss = embedding loss (cosine/MSE) + auxiliary param loss: predicted audio embeddings are fed into the frozen ParamReg, and the resulting parameters are compared to ground-truth targets [0..1].
+          This encourages the mapper to land in semantically meaningful regions of the audio-embedding space.
+
+      - `src/mapper/evaluate_mapper.py`
+          Reports mean cosine between predicted and true audio embeddings on the validation split, and R@k if a FAISS index is present.
+          Also runs the frozen ParamReg on predicted embeddings and prints per-parameter MAE in real units.
+
+      Config: `configs/mapper.yaml` (model size, losses, λ weights, paths to embeddings/npz and to the ParamReg checkpoint).
+
+### 5) Pipeline (Text -> Audio)
+      - `src/pipeline/text2synth.py`
+          End-to-end inference from a prompt:
+          prompt -> text emb -> mapper -> audio emb -> ParamReg -> synth params -> render WAV.
+          You can optionally disable neighbor blending (if your config supports it) and set topk=0.
+
+      - `src/pipeline/batch_text2synth.py`
+          Batch version that reads a CSV of prompts (e.g., tests/prompts_text2synth.csv).
+
+      - `src/pipeline/collect_text2synth_csv.py`
+          Helper to build CSVs of prompts for repeated experiments.
+
+      Config: `configs/pipeline.yaml` (paths to checkpoints, output dir, render settings, optional retrieval).
+
+### 6) Diagnostics
+      These scripts do not belong to the strict training pipeline, but are useful for quality control:
+
+      - `src/analysis/scan_npz_dataset.py`
+          Scans .npz and writes a CSV report (range checks, voiced ratio, late peaks, brightness thresholds, etc.).
+          Used to verify dataset health before training.
+
+      - `src/retrieval/retrieve.py`, `src/retrieval/batch_free_query.py`
+          Utilities to query the FAISS index by text or embedding to inspect nearest neighbors.
+      
+      - `src/analysis/validate.py`, `src/analysis/scan_npz_dataset.py`
+          Assorted checks/visualizations
+
+      - `scripts/analyze_generated_audio.py`
+          Summaries/statistics over rendered audio (e.g., distributions vs. targets).
+
+      These tools are not required to run the main demo, but they help document/justify behavior in the report.
 
 
-### Day 5/6 — Prototype Synthesizer
+## Reproducibility 
+  ### Presequisites
+    - Python: tested on version 3.8 and 3.10. Works on both versions. 
+    - Create and activate a virtual environment 
+    - Install dependencies: 
+      `pip install -r requirements.txt`
+    - Download the clap_630k pre-trained model (1.73 GB)
+      `wget https://huggingface.co/lukewys/laion_clap/resolve/main/630k-audioset-best.pt -O checkpoints/clap/clap_630k.pt`
+    - Run from the repository root
+  
+  ### Data and artifacts present in the repo
+    - Raw data: included (data/raw/).
+    - Checkpoints: included (checkpoints/paramreg/paramreg_best.pt, checkpoints/mapper/mapper_best.pt, checkpoints/clap/clap_630k.pt).
+    - Summaries/reports: included (e.g., reports/…).
+    - Generated outputs: not included (in .gitignore); they will be re-created under outputs/.
 
-**Objective:**  
-- Implement a **prototype audio synthesizer** driven by prompt-derived parameters.  
-- Integrate a **Karplus–Strong decoder** (`synth_decoder.py`) into the pipeline.  
-- Allow generation of pluck-like audio signals from free-text prompts.  
+  ### Commands
+  1) **Preprocess**
+      `python -m src.analysis.preprocess --config configs/base.yaml`
+  
+  2) **Features**
+      `python -m src.analysis.features --config configs/base.yaml`
+  
+  3) **Text Embeddings** 
+      `python -m src.text_encoder.extract_text_embeddings --config configs/embeddings.yaml`
+  
+  4) **Audio Embeddings**
+      `python -m src.audio_encoder.extract_audio_embeddings --config configs/embeddings.yaml`
+  
+  5) **Train ParamReg** (optional: the provided checkpoint can be used)
+      `python -m src.synth.train_params --config configs/params.yaml`
+  
+  6) **Evaluate ParamReg**
+      `python -m src.synth.evaluate_params --config configs/params.yaml --ckpt checkpoints/paramreg/paramreg_best.pt`
+  
+  7) **Train Mapper** (optional: the provided checkpoint can be used)
+      `python -m src.mapper.train_mapper --config configs/mapper.yaml`
 
-**Implementation:**  
-- Added `run_synth.py` with rule-based parameter extraction (`rule_params_from_prompt`).  
-- Added `KarplusStrongDecoder` to map high-level controls (pitch, decay, brightness, material).  
-- Configured paths and defaults in `configs/synth.yaml`.  
-- Tested the synthesizer on multiple prompts (e.g., *bright metallic pluck*, *dark mellow pluck*, *high-pitch bright pluck*).  
+  8) **Evaluate Mapper**
+      `python -m src.mapper.evaluate_mapper --config configs/mapper.yaml --ckpt checkpoints/mapper/mapper_best.pt`
+  
+  9) **Single-prompt inference (Text -> Synth)**
+      `python -m src.pipeline.text2synth --config configs/pipeline.yaml --query "low pitched pluck with long sustain" --topk 0`
+  
+  10) **Batch prompt**
+      `python -m src.pipeline.batch_text2synth --config configs/pipeline.yaml --csv tests/prompts_text2synth.csv --no-neigh`
 
-**Notes:**  
-- Current tests show **audible variation** between prompts (mainly pitch/decay).  
-- We have **not yet tested the mapper in synthesis** — parameters are currently forced via simple rules for validation.  
-- This provides a **working baseline** to verify that the pipeline produces coherent audio before moving to real data and more complex decoders.
+  **Optional: Execution with retrieval**
+    After the audio embedding extraction (step 4 of the pipeline):
+    - Build the FAISS index on audio embeddings (needed for R@k and any neighbor-based features)
+      `python scripts/build_faiss_index.py`
+
+    - Retrieval execution (top-k > 0)
+     e.g. k = 5
+      `python -m src.pipeline.text2synth --config configs/pipeline.yaml --query "low pitched pluck with long sustain" --topk 5`
+
+    What happens: the system takes the embedding predicted by the mapper and retrieves the 5 most similar audios from the FAISS index; then combines them (usually average/weighted-average, according to your internal settings) before passing the result to the ParamReg -> summary parameters -> WAV.
+
+    - Variant with batch retrieval (remove --no-neigh)
+      `python -m src.pipeline.batch_text2synth --config configs/pipeline.yaml --csv tests/prompts_text2synth.csv`
+  
+  **Optional: Health check**
+    -  Writes a dataset scan report
+      `python -m src.analysis.scan_npz_dataset --config configs/base.yaml --out_csv reports/dataset/npz_scan.csv`
+
+    - Collects all text2synth JSONs under outputs and writes a single CSV (JSON path, WAV path, prompt, and predicted synth parameters)
+      `python -m src.pipeline.collect_text2synth_csv --json_dir outputs --out_csv reports/summary_text2synth.csv --prompts_csv tests/prompts_text2synth.csv`
+  
+
+  ## Known limitations 
+    A few prompts (especially short vs. long sustain) may not perfectly match perceived outcomes.
+    This stems from the tiny dataset and the simplicity of the parameterization—intentional trade-offs for an AWOL-style, reproducible, fast-to-train system. 
+    The approach remains coherent: text controls a compact param set, the model learns from few samples and remains explainable.
+
+  
+
+
+  
 
 
 
-## Repository Structure
-awol-audio/
-│
-├── checkpoints/
-│   ├── clap/           
-│   └── mapper/
-|
-├── configs/
-│   ├── base.yaml                # main audio configuration
-|   ├── embeddings.yaml          # embedding/retrieval configuration
-|   ├── synth.yaml
-│   └── mapper.yaml 
-|
-│
-├── data/
-│   ├── meta/           # metadata
-|   |   ├── free_prompts.csv
-│   │   └── prompts.csv
-│   ├── raw/                     # raw audio (.wav)
-│   ├── processed/               # preprocessed audio and features
-│   │   ├── embeddings/          # per-file embeddings
-|   |   |    ├── audio/               
-|   │   |    └── text/ 
-│   │   ├── index/               # faiss index + ids.npy
-│   │   └── npz/                 # extracted features (.npz)
-|   ├── results/ 
-│   └── embeddings/              # packed embeddings
-│       ├── audio.npy               # consolidated audio embeddings
-│       └── text.npy                # consolidated text embeddings
-│
-├── src/
-│   ├── analysis/                # analysis pipeline
-│   │   ├── audio_io.py
-│   │   ├── preprocess.py
-│   │   ├── features.py
-│   │   ├── validate.py
-│   │   ├── inspect_npz.py
-│   │   ├── consistency_check.py
-│   │   ├── smoke_test.py
-|   |   ├── spectral_feats.py
-│   │   └── embeddings_smoke_test.py
-│   │
-│   ├── datasets/                # synthetic dataset generation
-│   │   └── make_synthetic_plucks.py
-│   │
-│   ├── retrieval/               # retrieval pipeline
-│   │   ├── retrieve.py
-|   |   ├── batch_free_query.py
-│   │   └── pack_embeddings.py
-|   |
-|   ├── synth/ 
-|   |   ├── run_synth.py
-|   |   └── synth_decoder.py
-│   │   
-|   |
-│   ├── audio_encoder/           # audio embedding models
-│   ├──text_encoder/            # text embedding models
-|   |
-|   |── tools/
-|   |
-|   └── mapper/
-│      ├── evaluate_mapper.py
-│      ├── mapper_mlp.py
-│      ├── mapper_smoke.py
-│      ├── predict_and_retrieve.py
-|      ├── predict_free_query.py
-│      └── train_mapper.py
-|   
-│
-├── README.md
-└── requirements.txt
+
+      
+
+
+
+
+

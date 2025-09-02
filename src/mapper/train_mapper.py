@@ -7,18 +7,23 @@ import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 from sklearn.model_selection import train_test_split
 
+
 from .mapper_mlp import MLPMapper
 
-# usiamo il param-regressor e l'estrazione target già esistenti
+
+# reuse the existing param-regressor and target extraction utilities
 from src.synth.param_regressor import ParamRegressor
 from src.synth.targets_from_npz import targets_from_npz
+
 
 
 EPS = 1e-9
 
 
+
 def set_seed(s):
     random.seed(s); np.random.seed(s); torch.manual_seed(s)
+
 
 
 def device_from_cfg(cfg):
@@ -28,19 +33,22 @@ def device_from_cfg(cfg):
     return "cuda" if (d == "cuda" and torch.cuda.is_available()) else "cpu"
 
 
+
 def l2norm_np(x):
     n = np.linalg.norm(x, axis=-1, keepdims=True) + EPS
     return x / n
+
 
 
 def l2norm_torch(x: torch.Tensor):
     return x / (x.norm(dim=-1, keepdim=True) + 1e-9)
 
 
+
 def to_unit(x, spec):
     """
-    Mappa valore reale -> [0,1] secondo spec {min,max,scale?}.
-    scale: 'linear' (default) o 'log_hz' (per pitch in Hz).
+    Map real value -> [0,1] according to spec {min,max,scale?}.
+    scale: 'linear' (default) or 'log_hz' (for pitch in Hz).
     """
     lo, hi = float(spec["min"]), float(spec["max"])
     scale = spec.get("scale", "linear")
@@ -55,6 +63,7 @@ def to_unit(x, spec):
         return (x - lo) / (hi - lo + 1e-9)
 
 
+
 def make_pairs_lists(text_dir, audio_dir, val_ratio, seed):
     text_files = {p.stem.replace(".text",""): p for p in Path(text_dir).glob("*.text.npy")}
     audio_files = {p.stem.replace(".audio",""): p for p in Path(audio_dir).glob("*.audio.npy")}
@@ -64,9 +73,10 @@ def make_pairs_lists(text_dir, audio_dir, val_ratio, seed):
     return train_names, val_names
 
 
+
 class PairDataset(Dataset):
     """
-    Coppie (text_emb, audio_emb) + target parametrici normalizzati [0,1] per loss ausiliaria.
+    Pairs of (text_emb, audio_emb) + parametric targets normalized to [0,1] for the auxiliary loss.
     """
     def __init__(self, text_dir, audio_dir, npz_dir, names, audio_cfg, param_specs):
         self.text_dir = Path(text_dir)
@@ -76,24 +86,26 @@ class PairDataset(Dataset):
         self.audio_cfg = audio_cfg
         self.param_specs = param_specs
 
-        # sanity: le dimensioni di text/audio nel meta devono combaciare
+        # sanity check: text/audio dims in meta must match
         td = json.load(open(self.text_dir / "meta.json"))["dim"]
         ad = json.load(open(self.audio_dir / "meta.json"))["dim"]
         assert td == ad, f"Dim mismatch text={td} audio={ad}"
         self.dim = td
 
+
     def __len__(self): return len(self.names)
+
 
     def __getitem__(self, idx):
         name = self.names[idx]
         t = np.load(self.text_dir / f"{name}.text.npy").astype(np.float32)   # (D,)
         a = np.load(self.audio_dir / f"{name}.audio.npy").astype(np.float32) # (D,)
 
-        # L2 normalize embeddings (coerente con tutto il resto della pipeline)
+        # L2-normalize embeddings (consistent with the rest of the pipeline)
         t = l2norm_np(t)
         a = l2norm_np(a)
 
-        # targets parametrici reali -> [0,1] (stesso schema del paramreg)
+        # parametric targets real -> [0,1] (same scheme as paramreg)
         d = np.load(self.npz_dir / f"{name}.npz")
         y_real = targets_from_npz(
             d,
@@ -109,14 +121,16 @@ class PairDataset(Dataset):
         return torch.from_numpy(t), torch.from_numpy(a), torch.from_numpy(y01), name
 
 
+
 def make_loss(name):
     if name == "cosine":
-        # minimizziamo (1 - cosine)
+        # minimize (1 - cosine)
         return lambda pred, tgt: (1.0 - nn.functional.cosine_similarity(pred, tgt, dim=-1)).mean()
     elif name == "mse":
         return nn.MSELoss()
     else:
         raise ValueError(f"Unknown loss: {name}")
+
 
 
 def make_param_loss(name, beta=0.05):
@@ -130,9 +144,10 @@ def make_param_loss(name, beta=0.05):
         raise ValueError(f"Unknown param loss: {name}")
 
 
+
 def load_paramreg_frozen(ckpt_path, model_cfg):
     """
-    Carica il ParamRegressor congelato (output in [0,1]) per la loss ausiliaria.
+    Load the frozen ParamRegressor (output in [0,1]) for the auxiliary loss.
     """
     ckpt = torch.load(ckpt_path, map_location="cpu")
     model = ParamRegressor(
@@ -149,6 +164,7 @@ def load_paramreg_frozen(ckpt_path, model_cfg):
     return model
 
 
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--config", default="configs/mapper.yaml")
@@ -161,20 +177,20 @@ def main():
     # --- paths & cfgs
     text_dir = cfg["paths"]["text_emb_dir"]
     audio_dir = cfg["paths"]["audio_emb_dir"]
-    npz_dir   = cfg["paths"]["npz_dir"]               # <== nuovo
+    npz_dir   = cfg["paths"]["npz_dir"]               # <== new
     ckpt_dir  = Path(cfg["paths"]["ckpt_dir"]); ckpt_dir.mkdir(parents=True, exist_ok=True)
 
-    # config dei parametri/synth (per normalizzazione [0,1])
-    # Se preferisci, puoi mettere direttamente "synth: { params: [...] }" dentro questo yaml,
-    # ma qui carichiamo dal params_real.yaml per coerenza.
+    # synth/parameter config (for [0,1] normalization)
+    # If you prefer, you can inline "synth: { params: [...] }" in this yaml,
+    # but here we load from params_real.yaml for consistency.
     params_cfg_path = cfg["paths"].get("params_config", None)
     if params_cfg_path is None:
-        raise ValueError("Missing paths.params_config in mapper config (serve per specs dei parametri).")
+        raise ValueError("Missing paths.params_config in mapper config (needed for parameter specs).")
     params_cfg = yaml.safe_load(open(params_cfg_path, "r"))
     param_specs = params_cfg["synth"]["params"]
     audio_cfg   = params_cfg["audio"]
 
-    # split train/val
+    # train/val split
     train_names, val_names = make_pairs_lists(text_dir, audio_dir, cfg["train"]["val_ratio"], cfg["train"]["seed"])
     dtrain = PairDataset(text_dir, audio_dir, npz_dir, train_names, audio_cfg, param_specs)
     dval   = PairDataset(text_dir, audio_dir, npz_dir, val_names,   audio_cfg, param_specs)
@@ -193,20 +209,20 @@ def main():
 
     opt = torch.optim.AdamW(model.parameters(), lr=cfg["train"]["lr"], weight_decay=cfg["train"]["weight_decay"])
 
-    # perdita in spazio embedding
+    # loss in embedding space
     emb_loss_fn = make_loss(cfg["train"]["loss"])
 
-    # carichiamo il paramreg congelato per la loss ausiliaria
+    # load the frozen paramreg for the auxiliary loss
     paramreg_ckpt = cfg["paths"].get("paramreg_ckpt", None)
     if paramreg_ckpt is None or not Path(paramreg_ckpt).exists():
         raise ValueError("paths.paramreg_ckpt mancante o inesistente: serve per la param-aux loss.")
     paramreg = load_paramreg_frozen(paramreg_ckpt, params_cfg["model"]).to(device)
 
-    # perdita sui parametri (in [0,1])
+    # parameter loss (in [0,1])
     param_loss_fn = make_param_loss(cfg["train"].get("param_loss", "huber"),
                                     beta=float(cfg["train"].get("param_beta", 0.05)))
 
-    # pesi
+    # weights
     lam_emb   = float(cfg["train"].get("lambda_embed", 0.5))
     lam_param = float(cfg["train"].get("lambda_param", 0.5))
 
@@ -222,10 +238,10 @@ def main():
             y01 = y01.to(device)            # (B, P)
 
             p = model(t)                    # (B, D)
-            # loss embedding
+            # embedding loss
             loss_emb = emb_loss_fn(p, a)
 
-            # loss parametrica: normalizza p -> passa nel paramreg (congelato)
+            # parametric loss: normalize p -> pass through frozen paramreg
             p_n = l2norm_torch(p)
             y_pred01 = paramreg(p_n)        # (B, P) in [0,1]
             loss_param = param_loss_fn(y_pred01, y01)
@@ -265,7 +281,7 @@ def main():
               f"train: emb={trE:.4f} param={trP:.4f} total={trT:.4f} | "
               f"val: emb={vaE:.4f} param={vaP:.4f} total={vaT:.4f}")
 
-        # early stop sulla loss totale di validazione
+        # early stopping on total validation loss
         if vaT < best_val - 1e-6:
             best_val = vaT; patience = 0
             ckpt_path = ckpt_dir / "mapper_best.pt"
@@ -276,6 +292,7 @@ def main():
             if patience >= cfg["train"]["early_stop_patience"]:
                 print("[EARLY STOP]")
                 break
+
 
 
 if __name__ == "__main__":
