@@ -10,5 +10,5 @@ synth:
 
 paths:
   mapper_ckpt: "checkpoints/mapper/mapper_best.pt"
-  clap_ckpt: "checkpoints/clap/clap_630k.pt"
+  #clap_ckpt: "checkpoints/clap/clap_630k.pt"
   output_dir: "outputs/gen_audio"

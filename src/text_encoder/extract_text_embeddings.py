@@ -1,3 +1,4 @@
+#src/text_encoder/extract_text_embeddings.py
 import os, csv, json, argparse, yaml
 from pathlib import Path
 import numpy as np

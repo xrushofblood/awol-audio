@@ -3,7 +3,7 @@ device: "auto"
 
 model:
   name: "laion_clap"
-  laion_variant: "checkpoints/clap/clap_630k.pt"   
+  #laion_variant: "checkpoints/clap/clap_630k.pt"   
   sbert_name: "sentence-transformers/all-MiniLM-L6-v2"
 
 paths:

@@ -136,12 +136,12 @@ Note: the small scale is by design; the model trains quickly and produces accept
   
   2) **Features**
       `python -m src.analysis.features --config configs/base.yaml`
-  
-  3) **Text Embeddings** 
-      `python -m src.text_encoder.extract_text_embeddings --config configs/embeddings.yaml`
-  
-  4) **Audio Embeddings**
+
+  3) **Audio Embeddings**
       `python -m src.audio_encoder.extract_audio_embeddings --config configs/embeddings.yaml`
+  
+  4) **Text Embeddings** 
+      `python -m src.text_encoder.extract_text_embeddings --config configs/embeddings.yaml`
   
   5) **Build FAISS index build** (required for evaluation):
       `python scripts/build_faiss_index.py` 
