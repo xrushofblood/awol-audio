@@ -1,4 +1,4 @@
-# AWOL-Audio Text-to-Synth Pipeline (Few-Shot, Fast to Train)
+# AWOL-Audio Text-to-Synth Pipeline
 
 This repository implements a **text-to-synthesis** pipeline that maps natural-language prompts (e.g., “high pitched wooden pluck, long sustain”) to **synth parameters** and renders audio.
 The design follows the **AWOL** philosophy: few examples, fast training, and a simple, modular stack you can re-run and inspect end-to-end.
