@@ -165,7 +165,7 @@ Note: the small scale is by design; the model trains quickly and produces accept
       `python -m src.pipeline.batch_text2synth --config configs/pipeline.yaml --csv tests/prompts_text2synth.csv --no-neigh`
 
 **Optional: Execution with retrieval**
-    After the FAISS index build (step 4 of the pipeline):
+- After the FAISS index build (step 4 of the pipeline):
       `python scripts/build_faiss_index.py` (required for evaluation) s
 
 - Retrieval execution (top-k > 0)
@@ -174,7 +174,7 @@ Note: the small scale is by design; the model trains quickly and produces accept
 
   What happens: the system takes the embedding predicted by the mapper and retrieves the 5 most similar audios from the FAISS index; then combines them (usually average/weighted-average, according to your internal settings) before passing the result to the ParamReg -> summary parameters -> WAV.
 
-    - Variant with batch retrieval (remove --no-neigh)
+- Variant with batch retrieval (remove --no-neigh)
       `python -m src.pipeline.batch_text2synth --config configs/pipeline.yaml --csv tests/prompts_text2synth.csv`
   
   **Optional: Health check**
