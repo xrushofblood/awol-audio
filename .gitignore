@@ -45,3 +45,4 @@ outputs/
 
 #CLAP pre-trained model
 checkpoints/clap/clap_630k.pt
+!checkpoints/clap
