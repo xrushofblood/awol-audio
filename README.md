@@ -15,7 +15,7 @@ At a high level:
 
 5. **Pipeline** → at inference, a text prompt is encoded, mapped to an audio embedding, converted to synth params, and rendered.
 
-Optional: build a FAISS index for similarity/retrieval diagnostics (R@k) and/or neighbor blending (if enabled in configs/CLI).
+   Optional: build a FAISS index for similarity/retrieval diagnostics (R@k) and/or neighbor blending (if enabled in configs/CLI).
 ---
 
 ## Dataset 
