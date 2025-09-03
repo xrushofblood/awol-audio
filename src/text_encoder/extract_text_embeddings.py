@@ -25,7 +25,7 @@ def load_text_model(cfg, device):
                 model.load_ckpt(ckpt_path)
             else:
                 print("[TEXT] Loading CLAP default checkpoint (no arg)…")
-                model.load_ckpt()  # <-- default pretrained (avoids treating '2023' as file path)
+                model.load_ckpt()  # <-- default pretrained
         except Exception as e:
             print(f"[TEXT][WARN] CLAP checkpoint load failed: {e}")
             print("[TEXT][WARN] Falling back to sentence-transformers.")
