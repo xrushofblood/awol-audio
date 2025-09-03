@@ -146,28 +146,30 @@ Note: the small scale is by design; the model trains quickly and produces accept
   4) **Audio Embeddings**
       `python -m src.audio_encoder.extract_audio_embeddings --config configs/embeddings.yaml`
   
-  5) **Train ParamReg** (optional: the provided checkpoint can be used)
+  5) **Build FAISS Index** (required for evaluation)  
+   `python scripts/build_faiss_index.py`
+  
+  6) **Train ParamReg** (optional: the provided checkpoint can be used)
       `python -m src.synth.train_params --config configs/params.yaml`
   
-  6) **Evaluate ParamReg**
+  7) **Evaluate ParamReg**
       `python -m src.synth.evaluate_params --config configs/params.yaml --ckpt checkpoints/paramreg/paramreg_best.pt`
   
-  7) **Train Mapper** (optional: the provided checkpoint can be used)
+  8) **Train Mapper** (optional: the provided checkpoint can be used)
       `python -m src.mapper.train_mapper --config configs/mapper.yaml`
 
-  8) **Evaluate Mapper**
+  9) **Evaluate Mapper**
       `python -m src.mapper.evaluate_mapper --config configs/mapper.yaml --ckpt checkpoints/mapper/mapper_best.pt`
   
-  9) **Single-prompt inference (Text -> Synth)**
+  10) **Single-prompt inference (Text -> Synth)**
       `python -m src.pipeline.text2synth --config configs/pipeline.yaml --query "low pitched pluck with long sustain" --topk 0`
   
-  10) **Batch prompt**
+  11) **Batch prompt**
       `python -m src.pipeline.batch_text2synth --config configs/pipeline.yaml --csv tests/prompts_text2synth.csv --no-neigh`
 
 **Optional: Execution with retrieval**
-    After the audio embedding extraction (step 4 of the pipeline):
-- Build the FAISS index on audio embeddings (needed for R@k and any neighbor-based features)
-      `python scripts/build_faiss_index.py`
+    After the FAISS index build (step 4 of the pipeline):
+      `python scripts/build_faiss_index.py` (required for evaluation) s
 
 - Retrieval execution (top-k > 0)
      e.g. k = 5
