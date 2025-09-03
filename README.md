@@ -177,11 +177,11 @@ Note: the small scale is by design; the model trains quickly and produces accept
 - Variant with batch retrieval (remove --no-neigh)
       `python -m src.pipeline.batch_text2synth --config configs/pipeline.yaml --csv tests/prompts_text2synth.csv`
   
-  **Optional: Health check**
-  -  Writes a dataset scan report
+**Optional: Health check**
+-  Writes a dataset scan report
       `python -m src.analysis.scan_npz_dataset --config configs/base.yaml --out_csv reports/dataset/npz_scan.csv`
 
-  - Collects all text2synth JSONs under outputs and writes a single CSV (JSON path, WAV path, prompt, and predicted synth parameters)
+- Collects all text2synth JSONs under outputs and writes a single CSV (JSON path, WAV path, prompt, and predicted synth parameters)
       `python -m src.pipeline.collect_text2synth_csv --json_dir outputs --out_csv reports/summary_text2synth.csv --prompts_csv tests/prompts_text2synth.csv`
   
 
