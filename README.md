@@ -122,9 +122,6 @@ Note: the small scale is by design; the model trains quickly and produces accept
   - Create and activate a virtual environment 
   - Install dependencies: 
       `pip install -r requirements.txt`
-  - Download the clap_630k pre-trained model (1.73 GB)
-      `wget https://huggingface.co/lukewys/laion_clap/resolve/main/630k-audioset-best.pt -O checkpoints/clap/clap_630k.pt`
-      (once in cache it can be delated and is still usable)
   - Run from the repository root
   
   ### Data and artifacts present in the repo
