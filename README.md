@@ -122,11 +122,12 @@ Note: the small scale is by design; the model trains quickly and produces accept
   - Create and activate a virtual environment 
   - Install dependencies: 
       `pip install -r requirements.txt`
+  - 
   - Run from the repository root
   
   ### Data and artifacts present in the repo
   - Raw data: included (data/raw/).
-  - Checkpoints: included (checkpoints/paramreg/paramreg_best.pt, checkpoints/mapper/mapper_best.pt).
+  - Checkpoints: included (checkpoints/paramreg/paramreg_best.pt, checkpoints/mapper/mapper_best.pt, checkpoints/clap/clap_630k.pt).
   - Summaries/reports: included (e.g., reports/…).
   - Generated outputs: not included (in .gitignore); they will be re-created under outputs/.
 
